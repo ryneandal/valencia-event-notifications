@@ -1,0 +1,60 @@
+name: Valencia Event Notifications
+
+on:
+  schedule:
+    # Run daily at 8 PM Madrid time (7 PM UTC in winter, 6 PM UTC in summer)
+    # Using 19:00 UTC as a compromise
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_email:
+        description: 'Skip sending email (testing only)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  scrape-and-notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download previous database artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: events-database
+        path: data/
+      continue-on-error: true
+    
+    - name: Run event scraper and notifier
+      env:
+        GMAIL_USER: ${{ secrets.GMAIL_USER }}
+        GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+      run: |
+        if [ "${{ inputs.skip_email }}" = "true" ]; then
+          python run.py --skip-email
+        else
+          python run.py
+        fi
+    
+    - name: Upload database artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: events-database
+        path: data/events.db
+        retention-days: 30
+        if-no-files-found: warn
