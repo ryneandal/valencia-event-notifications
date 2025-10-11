@@ -1,0 +1,55 @@
+name: Nightly Events Digest
+
+on:
+  # Run nightly at 8 AM UTC (9/10 AM Madrid time depending on DST)
+  schedule:
+    - cron: '0 8 * * *'
+  
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Download previous database if it exists (for deduplication)
+      - name: Download previous database
+        uses: actions/download-artifact@v4
+        with:
+          name: events-database
+          path: .
+        continue-on-error: true
+      
+      - name: Run scrapers and send digest
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
+        run: |
+          # TODO: Implement actual workflow execution
+          # python runner.py
+          echo "Workflow execution not yet implemented"
+      
+      # Upload database for next run (30-day retention)
+      - name: Upload database
+        uses: actions/upload-artifact@v4
+        with:
+          name: events-database
+          path: events.db
+          retention-days: 30
+        if: always()
