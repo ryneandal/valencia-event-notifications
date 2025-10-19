@@ -1,0 +1,16 @@
+<!-- Placeholder RSS fixture file -->
+<!-- TODO: Add actual RSS feed XML for testing -->
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Valencia Events Feed</title>
+    <description>Test RSS feed for Valencia events</description>
+    <link>https://example.com</link>
+    <item>
+      <title>Sample Event</title>
+      <link>https://example.com/event/1</link>
+      <description>This is a sample event description</description>
+      <pubDate>Sat, 12 Oct 2025 20:00:00 +0200</pubDate>
+    </item>
+  </channel>
+</rss>
