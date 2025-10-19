@@ -12,7 +12,7 @@ import pytest
 
 class TestRSSSpider:
     """Test suite for RSS feed spider."""
-    
+
     @pytest.fixture
     def spider(self):
         """Create spider instance for testing."""
@@ -20,13 +20,13 @@ class TestRSSSpider:
         # from scrapers.valencia_events.spiders.rss_spider import RSSSpider
         # return RSSSpider()
         pytest.skip("RSS spider not yet implemented")
-    
+
     @pytest.fixture
     def rss_fixture(self):
         """Load RSS XML fixture."""
         # TODO: Load tests/fixtures/valencia_rss.xml
         pytest.skip("RSS fixture not yet created")
-    
+
     def test_spider_produces_items(self, spider, rss_fixture):
         """Test that spider produces items from RSS feed."""
         # TODO: Implement test
@@ -36,7 +36,7 @@ class TestRSSSpider:
         # - Assert item has non-empty title
         # - Assert item has valid datetime in start field
         pytest.skip("Test not yet implemented")
-    
+
     def test_spider_settings(self, spider):
         """Test spider has correct settings."""
         # TODO: Verify DOWNLOAD_DELAY <= 1

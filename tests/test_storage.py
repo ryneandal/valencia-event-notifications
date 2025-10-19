@@ -7,15 +7,15 @@ Test acceptance criteria:
 - Events can be retrieved by date
 """
 
-import pytest
-from datetime import datetime
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import pytest
 
 
 class TestEventStorage:
     """Test suite for event storage."""
-    
+
     @pytest.fixture
     def temp_db(self):
         """Create temporary database for testing."""
@@ -24,7 +24,7 @@ class TestEventStorage:
         yield db_path
         # Cleanup
         Path(db_path).unlink(missing_ok=True)
-    
+
     @pytest.fixture
     def storage(self, temp_db):
         """Create storage instance with temp database."""
@@ -32,7 +32,7 @@ class TestEventStorage:
         # from storage import EventStorage
         # return EventStorage(temp_db)
         pytest.skip("EventStorage not yet implemented")
-    
+
     @pytest.fixture
     def sample_event(self):
         """Create sample event for testing."""
@@ -46,14 +46,14 @@ class TestEventStorage:
         #     source="test"
         # )
         pytest.skip("Event model not yet fully implemented")
-    
+
     def test_store_event(self, storage, sample_event):
         """Test storing an event."""
         # TODO: Test event storage
         # result = storage.store_event(sample_event)
         # assert result is True
         pytest.skip("Test not yet implemented")
-    
+
     def test_duplicate_detection(self, storage, sample_event):
         """Test that duplicate events are not inserted twice."""
         # TODO: Test deduplication
@@ -64,7 +64,7 @@ class TestEventStorage:
         # result2 = storage.store_event(sample_event)
         # assert result2 is False  # Duplicate should be skipped
         pytest.skip("Test not yet implemented")
-    
+
     def test_get_events_for_date(self, storage, sample_event):
         """Test retrieving events for a specific date."""
         # TODO: Test event retrieval

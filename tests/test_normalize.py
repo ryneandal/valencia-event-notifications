@@ -8,13 +8,11 @@ Test acceptance criteria:
 """
 
 import pytest
-from datetime import datetime
-import pytz
 
 
 class TestNormalize:
     """Test suite for event normalization."""
-    
+
     def test_normalize_iso_datetime(self):
         """Test normalization of ISO 8601 datetime string."""
         # TODO: Implement test
@@ -30,22 +28,22 @@ class TestNormalize:
         # assert event.start.tzinfo is not None
         # assert event.start.tzinfo.zone == "Europe/Madrid"
         pytest.skip("normalize_raw() not yet implemented")
-    
+
     def test_normalize_spanish_date_format(self):
         """Test normalization of Spanish date format."""
         # TODO: Test format like "12 de octubre de 2025 20:00"
         pytest.skip("normalize_raw() not yet implemented")
-    
+
     def test_normalize_numeric_date_format(self):
         """Test normalization of numeric date format."""
         # TODO: Test format like "12/10/2025 20:00"
         pytest.skip("normalize_raw() not yet implemented")
-    
+
     def test_normalize_rfc822_format(self):
         """Test normalization of RFC 822 format (RSS)."""
         # TODO: Test format from RSS feeds
         pytest.skip("normalize_raw() not yet implemented")
-    
+
     def test_invalid_date_raises_error(self):
         """Test that invalid date string raises ValueError."""
         # TODO: Test error handling

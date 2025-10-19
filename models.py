@@ -4,14 +4,13 @@ Defines Pydantic models for validated, normalized event data.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
 
 class Event(BaseModel):
     """Normalized event model with validated fields.
-    
+
     Attributes:
         title: Event title/name
         start: Event start date/time (timezone-aware, Europe/Madrid)
@@ -20,16 +19,17 @@ class Event(BaseModel):
         source: Source identifier
         event_hash: Unique hash for deduplication
     """
-    
+
     title: str = Field(..., min_length=1)
     start: datetime
     url: HttpUrl
     description: str = Field(default="")
     source: str
-    event_hash: Optional[str] = None
-    
+    event_hash: str | None = None
+
     class Config:
         """Pydantic model configuration."""
+
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }

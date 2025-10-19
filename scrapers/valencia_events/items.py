@@ -8,7 +8,7 @@ import scrapy
 
 class RawEventItem(scrapy.Item):
     """Raw event item scraped from various sources.
-    
+
     Fields:
         title (str): Event title/name
         start (str): Event start date/time (raw string to be normalized)
@@ -16,6 +16,7 @@ class RawEventItem(scrapy.Item):
         description (str): Event description text
         source (str): Source identifier (e.g., 'sala_russafa', 'rss_feed')
     """
+
     title = scrapy.Field()
     start = scrapy.Field()
     url = scrapy.Field()

@@ -10,7 +10,9 @@ SPIDER_MODULES = ["scrapers.valencia_events.spiders"]
 NEWSPIDER_MODULE = "scrapers.valencia_events.spiders"
 
 # Crawl responsibly by identifying yourself
-USER_AGENT = "valencia_events (+https://github.com/ryneandal/valencia-event-notifications)"
+USER_AGENT = (
+    "valencia_events (+https://github.com/ryneandal/valencia-event-notifications)"
+)
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True

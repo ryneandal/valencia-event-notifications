@@ -5,28 +5,27 @@ into standardized Event objects with timezone-aware datetimes.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 import pytz
 
 from models import Event
 
-
 VALENCIA_TZ = pytz.timezone("Europe/Madrid")
 
 
-def normalize_raw(raw_item: Dict[str, Any]) -> Event:
+def normalize_raw(raw_item: dict[str, Any]) -> Event:
     """Convert raw scraped item into normalized Event model.
-    
+
     Args:
         raw_item: Dictionary with raw event data from scrapers
-        
+
     Returns:
         Validated Event model with timezone-aware datetime
-        
+
     Raises:
         ValueError: If required fields are missing or invalid
-        
+
     Example:
         >>> raw = {
         ...     "title": "Concert",
@@ -45,19 +44,19 @@ def normalize_raw(raw_item: Dict[str, Any]) -> Event:
     # - "DD/MM/YYYY HH:MM"
     # - "DD de mes de YYYY HH:MM" (Spanish month names)
     # - RFC 822 (from RSS feeds)
-    
+
     raise NotImplementedError("normalize_raw() not yet implemented")
 
 
 def parse_datetime(date_string: str) -> datetime:
     """Parse various date/time formats into timezone-aware datetime.
-    
+
     Args:
         date_string: Date/time string in various formats
-        
+
     Returns:
         Timezone-aware datetime in Europe/Madrid timezone
-        
+
     Raises:
         ValueError: If date string cannot be parsed
     """
