@@ -3,6 +3,8 @@
 Handles database creation, event storage, and deduplication.
 """
 
+import hashlib
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -25,19 +27,27 @@ class EventStorage:
         self.db_path = Path(db_path)
         self._init_db()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get database connection."""
+        return sqlite3.connect(
+            self.db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+        )
+
     def _init_db(self):
         """Create database and tables if they don't exist."""
-        # TODO: Implement table creation
-        # Schema should include:
-        # - id (primary key)
-        # - title
-        # - start (datetime)
-        # - url
-        # - description
-        # - source
-        # - event_hash (unique index for deduplication)
-        # - created_at (timestamp)
-        pass
+        with self._get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_hash TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    start TIMESTAMP NOT NULL,
+                    url TEXT,
+                    description TEXT,
+                    source TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
     def store_event(self, event: Event) -> bool:
         """Store an event in the database.
@@ -51,8 +61,29 @@ class EventStorage:
         Returns:
             True if event was inserted, False if duplicate was skipped
         """
-        # TODO: Implement storage with deduplication
-        raise NotImplementedError("store_event() not yet implemented")
+        # Ensure hash is computed
+        if not event.event_hash:
+            event.event_hash = compute_event_hash(event)
+
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO events (event_hash, title, start, url, description, source)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_hash,
+                        event.title,
+                        event.start,
+                        str(event.url),
+                        event.description,
+                        event.source,
+                    ),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
 
     def get_events_for_date(self, date: datetime) -> list[Event]:
         """Retrieve all events for a specific date.
@@ -63,12 +94,49 @@ class EventStorage:
         Returns:
             List of events scheduled for the given date
         """
-        # TODO: Implement event retrieval
-        raise NotImplementedError("get_events_for_date() not yet implemented")
+        target_date_str = date.strftime("%Y-%m-%d")
+        events = []
+
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT title, start, url, description, source, event_hash
+                FROM events
+                WHERE date(start) = ?
+                """,
+                (target_date_str,),
+            )
+
+            for row in cursor:
+                # sqlite3 with detect_types returns datetime objects for TIMESTAMP
+                # columns but depending on storage it might be naive.
+                # Pydantic expects zone info if defined, so we reconstruct.
+                title, start, url, description, source, event_hash = row
+
+                # Check if start is string (if detect_types failed) or datetime
+                if isinstance(start, str):
+                    # Should be ISO format
+                    try:
+                        start = datetime.fromisoformat(start)
+                    except ValueError:
+                        pass  # Let validation fail if strictly required or handle basic
+
+                events.append(
+                    Event(
+                        title=title,
+                        start=start,
+                        url=url,
+                        description=description,
+                        source=source,
+                        event_hash=event_hash,
+                    )
+                )
+        return events
 
     def close(self):
         """Close database connection."""
-        # TODO: Implement connection cleanup
+        # Connections are context managed in methods, nothing to close
+        # unless we kept a persistent self.conn
         pass
 
 
@@ -83,5 +151,6 @@ def compute_event_hash(event: Event) -> str:
     Returns:
         SHA256 hash string
     """
-    # TODO: Implement hash computation
-    raise NotImplementedError("compute_event_hash() not yet implemented")
+    # Normalize inputs for consistent hashing
+    data = f"{event.title}|{event.start.isoformat()}|{event.url}"
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()

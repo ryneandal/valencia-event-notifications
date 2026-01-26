@@ -4,7 +4,13 @@ Builds HTML emails and sends them via SMTP.
 """
 
 import os
+import smtplib
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader
 
 from models import Event
 
@@ -18,19 +24,14 @@ def build_html(events: list[Event], date: datetime) -> str:
 
     Returns:
         HTML string for email body
-
-    Example:
-        >>> events = [Event(...), Event(...)]
-        >>> html = build_html(events, datetime(2025, 10, 12))
-        >>> "<!DOCTYPE html>" in html
-        True
     """
-    # TODO: Implement HTML email template
-    # Should include:
-    # - Nice header with date
-    # - List of events with title, time, description, link
-    # - Footer
-    raise NotImplementedError("build_html() not yet implemented")
+    date_str = date.strftime("%A, %d %B %Y")
+
+    templates_dir = Path(__file__).parent / "templates"
+    env = Environment(loader=FileSystemLoader(templates_dir))
+    template = env.get_template("digest.html")
+
+    return template.render(events=events, date_str=date_str)
 
 
 def send_email(
@@ -65,7 +66,6 @@ def send_email(
     Raises:
         ValueError: If required credentials are missing
     """
-    # Get credentials from environment if not provided
     smtp_user = smtp_user or os.environ.get("SMTP_USER")
     smtp_password = smtp_password or os.environ.get("SMTP_APP_PASSWORD")
     from_email = from_email or smtp_user
@@ -76,11 +76,22 @@ def send_email(
             "environment variables."
         )
 
-    # TODO: Implement email sending
-    # Should:
-    # - Create MIME message
-    # - Connect to SMTP server with TLS
-    # - Authenticate
-    # - Send message
-    # - Handle errors gracefully
-    raise NotImplementedError("send_email() not yet implemented")
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        return True
+    except smtplib.SMTPException as e:
+        print(f"SMTP Error: {e}")
+        return False
+    except Exception as e:
+        print(f"General Email Error: {e}")
+        raise

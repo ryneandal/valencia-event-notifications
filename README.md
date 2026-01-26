@@ -82,6 +82,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGE
    ruff check .
    ```
 
+6. **Run the Digest**:
+   The workflow is managed via a CLI:
+   ```bash
+   python runner.py main
+   ```
+   View available commands:
+   ```bash
+   python runner.py --help
+   ```
+
 ## Configuration
 
 The following environment variables are required for the full workflow:
@@ -115,7 +125,8 @@ valencia-event-notifications/
 ├── normalize.py              # Data normalization logic
 ├── storage.py                # SQLite storage layer
 ├── mailer.py                 # Email functionality
-├── runner.py                 # Main orchestrator
+├── runner.py                 # Main orchestrator (CLI)
+├── logger.py                 # Logging configuration
 ├── tests/                    # Test suite
 │   ├── fixtures/            # Test fixtures
 │   └── test_*.py            # Test modules

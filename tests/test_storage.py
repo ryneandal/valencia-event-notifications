@@ -28,44 +28,50 @@ class TestEventStorage:
     @pytest.fixture
     def storage(self, temp_db):
         """Create storage instance with temp database."""
-        # TODO: Import and create storage
-        # from storage import EventStorage
-        # return EventStorage(temp_db)
-        pytest.skip("EventStorage not yet implemented")
+        from storage import EventStorage
+        return EventStorage(temp_db)
 
     @pytest.fixture
     def sample_event(self):
         """Create sample event for testing."""
-        # TODO: Create Event instance
-        # from models import Event
-        # return Event(
-        #     title="Test Event",
-        #     start=datetime(2025, 10, 12, 20, 0),
-        #     url="https://example.com",
-        #     description="Test description",
-        #     source="test"
-        # )
-        pytest.skip("Event model not yet fully implemented")
+        from datetime import datetime
+        from models import Event
+        return Event(
+            title="Test Event",
+            start=datetime(2025, 10, 12, 20, 0),
+            url="https://example.com/test",
+            description="Test description",
+            source="test"
+        )
 
     def test_store_event(self, storage, sample_event):
         """Test storing an event."""
-        # TODO: Test event storage
-        # result = storage.store_event(sample_event)
-        # assert result is True
-        pytest.skip("Test not yet implemented")
+        result = storage.store_event(sample_event)
+        assert result is True
 
     def test_duplicate_detection(self, storage, sample_event):
         """Test that duplicate events are not inserted twice."""
-        # TODO: Test deduplication
-        # from storage import compute_event_hash
-        # sample_event.event_hash = compute_event_hash(sample_event)
-        # result1 = storage.store_event(sample_event)
-        # assert result1 is True
-        # result2 = storage.store_event(sample_event)
-        # assert result2 is False  # Duplicate should be skipped
-        pytest.skip("Test not yet implemented")
+        from storage import compute_event_hash
+        sample_event.event_hash = compute_event_hash(sample_event)
+        
+        # Store first time
+        result1 = storage.store_event(sample_event)
+        assert result1 is True
+        
+        # Store second time (should be duplicate)
+        result2 = storage.store_event(sample_event)
+        assert result2 is False
 
     def test_get_events_for_date(self, storage, sample_event):
         """Test retrieving events for a specific date."""
-        # TODO: Test event retrieval
-        pytest.skip("Test not yet implemented")
+        storage.store_event(sample_event)
+        
+        # Match date
+        events = storage.get_events_for_date(sample_event.start)
+        assert len(events) == 1
+        assert events[0].title == sample_event.title
+        
+        # Mismatch date
+        from datetime import datetime, timedelta
+        events_empty = storage.get_events_for_date(sample_event.start + timedelta(days=1))
+        assert len(events_empty) == 0

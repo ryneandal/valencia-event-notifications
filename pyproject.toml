@@ -2,6 +2,10 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["scrapers", "scrapers.valencia_events", "scrapers.valencia_events.spiders"]
+
+
 [project]
 name = "valencia-event-notifications"
 version = "0.1.0"
