@@ -12,8 +12,7 @@ from models import Event
 from normalize import normalize_raw
 from storage import EventStorage
 
-app = typer.Typer(help="Valencia Events digest workflow manager.")
-
+# Get logger
 logger = get_logger(__name__)
 
 
@@ -76,7 +75,6 @@ def filter_events_for_tomorrow(events: list[Event]) -> list[Event]:
     return [event for event in events if event.start.date() == tomorrow]
 
 
-@app.command()
 def main():
     """Main entry point for the digest workflow.
 
@@ -141,4 +139,4 @@ def main():
 
 
 if __name__ == "__main__":
-    app()
+    typer.run(main)

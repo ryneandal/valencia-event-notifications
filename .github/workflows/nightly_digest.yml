@@ -41,7 +41,7 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
         run: |
-          python runner.py main
+          python runner.py
       
       # Upload database for next run (30-day retention)
       - name: Upload database

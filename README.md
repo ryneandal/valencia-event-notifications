@@ -85,7 +85,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGE
 6. **Run the Digest**:
    The workflow is managed via a CLI:
    ```bash
-   python runner.py main
+   python runner.py
    ```
    View available commands:
    ```bash
