@@ -22,12 +22,12 @@
 - [ ] **User Management** (See [specs/user_management.md](specs/user_management.md))
     - [x] Implement User Model & Database migration (`users` and `users_events` tables added)
     - [ ] Select hosting/DB strategy (Persistent storage vs GHA artifacts)
-    - [ ] Web App skeleton (FastAPI)
-    - [ ] Google Sign-in implementation
+    - [x] Web App skeleton (FastAPI)
+    - [x] Google Sign-in implementation
     - [ ] Passkey implementation
-    - [ ] User Profile UI (Preferences input)
+    - [x] User Profile UI (Preferences input)
 
 - [ ] **AI Personalization** (See [specs/llm_filtering.md](specs/llm_filtering.md))
-    - [ ] `google-generativeai` integration
-    - [ ] Prompt engineering for event curation
-    - [ ] Multi-user digest generation loop
+    - [x] `google-generativeai` integration
+    - [x] Prompt engineering for event curation
+    - [x] Multi-user digest generation loop

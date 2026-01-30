@@ -24,6 +24,8 @@ dependencies = [
     "itsdangerous>=2.1.0",
     "httpx>=0.26.0",
     "python-multipart>=0.0.9",
+    "google-genai>=0.3.0",
+    "webauthn>=2.0.0",
 ]
 
 [project.scripts]
