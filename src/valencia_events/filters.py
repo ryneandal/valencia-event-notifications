@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from models import Event
+from .models import Event
 
 
 def filter_events_for_tomorrow(events: list[Event]) -> list[Event]:

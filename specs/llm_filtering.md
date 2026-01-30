@@ -22,8 +22,8 @@ Use an LLM (Gemini) to filter and rank daily events based on a user's natural la
 ## Technical Architecture
 - **Model**: Gemini (likely `gemini-pro` via `google-generativeai` SDK).
 - **Pipeline**:
-    1.  `runner.py` fetches tomorrow's events.
-    2.  `runner.py` loads active users.
+    1.  `cli.py` fetches tomorrow's events.
+    2.  `cli.py` loads active users.
     3.  For each user:
         - Construct prompt: `System: You are an event curator. User: {prefs}. Events: {events_json}. Task: Pick top 5...`
         - Call API.
@@ -34,5 +34,5 @@ Use an LLM (Gemini) to filter and rank daily events based on a user's natural la
 ## Tasks
 - [ ] Add `google-generativeai` dependency.
 - [ ] Define LLM Prompt Template.
-- [ ] Implement `LLMFilter` class in `filters.py` (new).
-- [ ] Update `runner.py` to loop through users.
+- [ ] Implement `LLMFilter` class in `src/valencia_events/filters.py`.
+- [ ] Update `src/valencia_events/cli.py` to loop through users.

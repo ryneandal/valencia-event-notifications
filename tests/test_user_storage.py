@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from storage import EventStorage
+from valencia_events.storage import EventStorage
 
 class TestUserStorage:
     """Test suite for user storage tables."""

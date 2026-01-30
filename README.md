@@ -88,7 +88,7 @@ The project uses SQLite (`events.db`) with the following schema:
 
 3. **Install dependencies**:
    ```bash
-   uv sync
+   uv sync --extra dev
    ```
 
 4. **Run tests**:
@@ -104,21 +104,21 @@ The project uses SQLite (`events.db`) with the following schema:
    ```
 
 6. **Run the Digest**:
-   The workflow is managed via a CLI app (using `typer`):
+   The workflow is managed via a CLI app:
    ```bash
-   uv run runner.py --help
+   uv run valencia-events --help
    ```
 
    Common commands:
    ```bash
    # Run the full workflow (scrape -> normalize -> send)
-   uv run runner.py
+   uv run valencia-events
    
    # Only scrape events
-   uv run runner.py scrape
+   uv run valencia-events scrape
    
    # Send test email
-   uv run runner.py send-test-email --to your@email.com
+   uv run valencia-events send-test-email --to your@email.com
    ```
 
 ## Configuration
@@ -144,27 +144,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 ```
 valencia-event-notifications/
-├── scrapers/                  # Scrapy project
-│   ├── valencia_events/
-│   │   ├── spiders/          # Spider implementations
-│   │   │   └── visit_valencia_spider.py
-│   │   ├── items.py          # Scrapy item definitions
-│   │   ├── pipelines.py      # Scrapy pipelines
-│   │   └── settings.py       # Scrapy settings
-│   └── scrapy.cfg            # Scrapy configuration
-├── targets/                  # Local artifacts (HTML/JSON dumps) from runs
-├── models.py                 # Pydantic data models
-├── normalize.py              # Data normalization logic
-├── storage.py                # SQLite storage layer
-├── mailer.py                 # Email functionality
-├── runner.py                 # Main orchestrator (CLI)
-├── logger.py                 # Logging configuration
+├── src/
+│   ├── valencia_events/      # Main application package
+│   │   ├── cli.py            # CLI entry point
+│   │   ├── services.py       # Core services
+│   │   ├── filters.py        # Event filtering logic
+│   │   ├── models.py         # Pydantic data models
+│   │   ├── normalize.py      # Data normalization
+│   │   ├── storage.py        # SQLite storage layer
+│   │   ├── mailer.py         # Email functionality
+│   │   ├── logger.py         # Logging config
+│   │   └── templates/        # Email templates
+│   └── scrapers/             # Scrapy project package
+│       ├── valencia_events/
+│       │   ├── spiders/
+│       │   ├── items.py
+│       │   ├── pipelines.py
+│       │   └── settings.py
+│       └── scrapy.cfg
+├── targets/                  # Local artifacts (HTML/JSON dumps)
 ├── tests/                    # Test suite
-│   ├── fixtures/            # Test fixtures
-│   └── test_*.py            # Test modules
 ├── .github/workflows/        # GitHub Actions
-├── pyproject.toml           # Project configuration
-└── requirements.txt         # Dependencies
+├── pyproject.toml            # Project configuration
+└── events.db                 # SQLite database
 ```
 
 ## License

@@ -6,13 +6,13 @@ from pathlib import Path
 
 import typer
 
-from filters import filter_events_for_tomorrow
-from logger import configure_logging, get_logger
-from mailer import build_html, send_email
-from models import Event
-from normalize import normalize_raw
-from services import run_scrapers
-from storage import EventStorage
+from .filters import filter_events_for_tomorrow
+from .logger import configure_logging, get_logger
+from .mailer import build_html, send_email
+from .models import Event
+from .normalize import normalize_raw
+from .services import run_scrapers
+from .storage import EventStorage
 
 # Get logger
 logger = get_logger(__name__)

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from models import Event
+from .models import Event
 
 
 def build_html(events: list[Event], date: datetime) -> str:

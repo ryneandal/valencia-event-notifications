@@ -12,10 +12,11 @@
 - [x] **Core Infrastructure**
     - [x] Project scaffolding
     - [x] `visit_valencia_spider.py`
-    - [x] Data Normalization (`normalize.py`)
-    - [x] Storage/Deduplication (`storage.py`)
-    - [x] Mailer (`mailer.py`)
-    - [x] CLI Runner (`runner.py`)
+    - [x] Data Normalization (`src/valencia_events/normalize.py`)
+    - [x] Storage/Deduplication (`src/valencia_events/storage.py`)
+    - [x] Mailer (`src/valencia_events/mailer.py`)
+    - [x] CLI Runner (`src/valencia_events/cli.py`)
+    - [x] Refactor to `src` package layout
     - [x] CI/CD (`nightly_digest.yml`)
 
 - [ ] **User Management** (See [specs/user_management.md](specs/user_management.md))

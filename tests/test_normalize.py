@@ -15,7 +15,7 @@ class TestNormalize:
 
     def test_normalize_iso_datetime(self):
         """Test normalization of ISO 8601 datetime string."""
-        from normalize import normalize_raw
+        from valencia_events.normalize import normalize_raw
         raw = {
             "title": "Test Event",
             "start": "2025-10-12T20:00:00+02:00",
@@ -30,7 +30,7 @@ class TestNormalize:
 
     def test_normalize_spanish_date_format(self):
         """Test normalization of Spanish date format."""
-        from normalize import normalize_raw
+        from valencia_events.normalize import normalize_raw
         raw = {
             "title": "Spanish Event",
             "start": "12 de octubre de 2025 20:00",
@@ -44,7 +44,7 @@ class TestNormalize:
 
     def test_normalize_numeric_date_format(self):
         """Test normalization of numeric date format."""
-        from normalize import normalize_raw
+        from valencia_events.normalize import normalize_raw
         raw = {
             "title": "Numeric Event",
             "start": "12/10/2025 20:00",
@@ -64,6 +64,6 @@ class TestNormalize:
 
     def test_invalid_date_raises_error(self):
         """Test that invalid date string raises ValueError."""
-        from normalize import normalize_raw
+        from valencia_events.normalize import normalize_raw
         with pytest.raises(ValueError):
             normalize_raw({"title": "Bad", "start": "Invalid Date"})

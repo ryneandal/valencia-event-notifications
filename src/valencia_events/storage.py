@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from models import Event
+from .models import Event
 
 
 # Register adapters and converters for datetime to avoid Python 3.12 deprecation warnings

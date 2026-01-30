@@ -28,14 +28,14 @@ class TestEventStorage:
     @pytest.fixture
     def storage(self, temp_db):
         """Create storage instance with temp database."""
-        from storage import EventStorage
+        from valencia_events.storage import EventStorage
         return EventStorage(temp_db)
 
     @pytest.fixture
     def sample_event(self):
         """Create sample event for testing."""
         from datetime import datetime
-        from models import Event
+        from valencia_events.models import Event
         return Event(
             title="Test Event",
             start=datetime(2025, 10, 12, 20, 0),
@@ -51,7 +51,7 @@ class TestEventStorage:
 
     def test_duplicate_detection(self, storage, sample_event):
         """Test that duplicate events are not inserted twice."""
-        from storage import compute_event_hash
+        from valencia_events.storage import compute_event_hash
         sample_event.event_hash = compute_event_hash(sample_event)
         
         # Store first time

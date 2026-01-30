@@ -10,7 +10,7 @@ from typing import Any
 
 import pytz
 
-from models import Event
+from .models import Event
 
 VALENCIA_TZ = pytz.timezone("Europe/Madrid")
 

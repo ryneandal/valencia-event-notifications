@@ -5,7 +5,7 @@ Defines Pydantic models for validated, normalized event data.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class Event(BaseModel):
@@ -27,8 +27,3 @@ class Event(BaseModel):
     source: str
     event_hash: str | None = None
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
