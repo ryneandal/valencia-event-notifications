@@ -11,6 +11,19 @@ from pathlib import Path
 from models import Event
 
 
+# Register adapters and converters for datetime to avoid Python 3.12 deprecation warnings
+def adapt_datetime(dt: datetime) -> str:
+    """Adapt datetime to ISO 8601 string."""
+    return dt.isoformat(sep=" ")
+
+def convert_timestamp(val: bytes) -> datetime:
+    """Convert valid ISO 8601 byte string to datetime."""
+    return datetime.fromisoformat(val.decode())
+
+sqlite3.register_adapter(datetime, adapt_datetime)
+sqlite3.register_converter("TIMESTAMP", convert_timestamp)
+
+
 class EventStorage:
     """SQLite-based storage for events with deduplication.
 
@@ -36,7 +49,7 @@ class EventStorage:
     def _init_db(self):
         """Create database and tables if they don't exist."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.executescript("""
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_hash TEXT UNIQUE NOT NULL,
@@ -46,7 +59,26 @@ class EventStorage:
                     description TEXT,
                     source TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                );
+
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    preferences TEXT,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS users_events (
+                    user_id INTEGER NOT NULL,
+                    event_hash TEXT NOT NULL,
+                    is_sent BOOLEAN DEFAULT 0,
+                    relevance_score FLOAT,
+                    relevance_reason TEXT,
+                    PRIMARY KEY (user_id, event_hash),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (event_hash) REFERENCES events(event_hash)
+                );
             """)
 
     def store_event(self, event: Event) -> bool:
