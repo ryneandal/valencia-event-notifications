@@ -17,16 +17,18 @@ This project automatically scrapes event information from various sources in Val
 
 ## Project Status
 
-**Current Stage**: Scaffolding Complete ✅
+**Current Stage**: Active Development 🚀
 
-The project structure is set up with stubs for all major components. Implementation is pending for:
-- Spider implementations (RSS, Sala Russafa, etc.)
-- Date parsing and normalization logic
-- Database operations
-- Email template and sending
-- Main orchestrator workflow
+The project core is implemented and running:
+- ✅ Scrapy spiders for gathering events (Visit Valencia)
+- ✅ Date parsing and normalization
+- ✅ SQLite storage with deduplication
+- ✅ Email generation (Jinja2 templates) and sending (SMTP)
+- ✅ Periodic execution via GitHub Actions
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
+See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
+
+
 
 ## Architecture
 
@@ -51,6 +53,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGE
 └─────────────┘
 ```
 
+## Data Schema
+
+The project uses SQLite (`events.db`) with the following schema:
+
+- **`events`**: Stores unique events found by scrapers.
+  - `event_hash`: Unique identifier (SHA256 of title + date + url).
+  - `title`, `start`, `url`, `description`, `source`.
+
+- **`users`**: User profiles for personalization.
+  - `email`: User's email address.
+  - `preferences`: Natural language description of interests (e.g., "hiking, art").
+  - `is_active`: Subscription status.
+
+- **`users_events`**: Join table for personalized recommendations.
+  - `user_id`, `event_hash`.
+  - `relevance_score`: LLM-assigned relevance.
+  - `relevance_reason`: LLM explanation.
+  - `is_sent`: Tracks if the event has been emailed to the user.
+
 ## Quick Start
 
 1. **Clone the repository**:
@@ -59,37 +80,45 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGE
    cd valencia-event-notifications
    ```
 
-2. **Set up Python environment** (requires Python 3.11+):
+2. **Install `uv`** (if not already installed):
    ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
+   See [uv documentation](https://docs.astral.sh/uv/) for more details.
 
 3. **Install dependencies**:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 
 4. **Run tests**:
    ```bash
-   pytest
+   uv run pytest
    ```
 
 5. **Run linters**:
    ```bash
-   black .
-   isort .
-   ruff check .
+   uv run black .
+   uv run isort .
+   uv run ruff check .
    ```
 
 6. **Run the Digest**:
-   The workflow is managed via a CLI:
+   The workflow is managed via a CLI app (using `typer`):
    ```bash
-   python runner.py
+   uv run runner.py --help
    ```
-   View available commands:
+
+   Common commands:
    ```bash
-   python runner.py --help
+   # Run the full workflow (scrape -> normalize -> send)
+   uv run runner.py
+   
+   # Only scrape events
+   uv run runner.py scrape
+   
+   # Send test email
+   uv run runner.py send-test-email --to your@email.com
    ```
 
 ## Configuration
@@ -116,11 +145,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ```
 valencia-event-notifications/
 ├── scrapers/                  # Scrapy project
-│   └── valencia_events/
-│       ├── spiders/          # Spider implementations
-│       ├── items.py          # Scrapy item definitions
-│       ├── pipelines.py      # Scrapy pipelines
-│       └── settings.py       # Scrapy settings
+│   ├── valencia_events/
+│   │   ├── spiders/          # Spider implementations
+│   │   │   └── visit_valencia_spider.py
+│   │   ├── items.py          # Scrapy item definitions
+│   │   ├── pipelines.py      # Scrapy pipelines
+│   │   └── settings.py       # Scrapy settings
+│   └── scrapy.cfg            # Scrapy configuration
+├── targets/                  # Local artifacts (HTML/JSON dumps) from runs
 ├── models.py                 # Pydantic data models
 ├── normalize.py              # Data normalization logic
 ├── storage.py                # SQLite storage layer

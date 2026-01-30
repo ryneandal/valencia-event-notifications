@@ -30,18 +30,14 @@ Example issue body (good):
 
 ---
 
-## 2 — Task decomposition (recommended issue list)
-Break work into discrete issues the Copilot agent can complete in one PR:
+## 2 — Task decomposition (Backlog)
 
-1. `scrapers: rss_spider` — implement FeedSpider that writes JSONL items; include unit test using an RSS fixture.  
-2. `scrapers: sala_russafa_spider` — site-specific spider + fixture + test.  
-3. `normalize: parse & pydantic model` — implement `Event` model and `normalize_raw()` with tests for several date formats.  
-4. `storage: sqlite helper` — implement DB creation, dedupe hash, and unit tests for dedupe behavior.  
-5. `mailer: html builder & smtp sender` — implement `build_html()` and `send_email()` with a mock SMTP test.  
-6. `runner: orchestrator` — integrate scrapers runner, normalize, filter-for-tomorrow, store, and mailer (end-to-end integration test using cached outputs).  
-7. `ci: actions workflow` — implement workflow YAML with artifact upload/download.  
-8. `tests & lint` — add pytest config, a few unit tests, and GitHub Actions job to run tests and linters.  
-Each issue must include small, reproducible tests as the success criteria. Copilot performs best when it can run and verify tests.
+See [task.md](task.md) for the current backlog and project status.
+
+When picking up a new task:
+1. Select an uncompleted item from `task.md`.
+2. Break it down into small, testable steps if needed.
+3. Follow the prompting guidelines in Section 3.
 
 ---
 
