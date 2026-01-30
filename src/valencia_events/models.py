@@ -26,4 +26,6 @@ class Event(BaseModel):
     description: str = Field(default="")
     source: str
     event_hash: str | None = None
+    relevance_score: float | None = None
+    relevance_reason: str | None = None
 

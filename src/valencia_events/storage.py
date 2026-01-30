@@ -193,6 +193,15 @@ class EventStorage:
                 (email, preferences, is_active),
             )
 
+    def get_active_users(self) -> list[dict]:
+        """Get all active users."""
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM users WHERE is_active = 1"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
     def close(self):
         """Close database connection."""
         pass

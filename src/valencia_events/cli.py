@@ -71,29 +71,56 @@ def run():
             new_count += 1
     logger.info(f"Stored {new_count} new events")
 
-    # 4. Filter for tomorrow
+    # 5. Filter for tomorrow
     tomorrow_events = filter_events_for_tomorrow(events)
     logger.info(f"Found {len(tomorrow_events)} events for tomorrow")
 
-    # 5. Build & Send email
-    if tomorrow_events:
-        target_date = tomorrow_events[0].start  # approximate date
-        html = build_html(tomorrow_events, target_date)
+    # 6. Personalize & Send
+    from .filters import LLMFilter
+    
+    # Initialize LLM (will skip if no key)
+    llm_filter = LLMFilter()
+    
+    # Get active users
+    active_users = storage.get_active_users()
+    logger.info(f"Found {len(active_users)} active users")
 
+    if tomorrow_events:
+        target_date = tomorrow_events[0].start
+        
+        if active_users:
+            for user in active_users:
+                email = user["email"]
+                preferences = user["preferences"]
+                logger.info(f"Processing digest for {email}")
+                
+                # Filter for user (or use all if no prefs/LLM)
+                user_events = llm_filter.filter_for_user(tomorrow_events, preferences)
+                
+                if user_events:
+                    html = build_html(user_events, target_date)
+                    sent = send_email(
+                        subject=f"Your Valencia Events - {target_date.strftime('%d %b')}",
+                        html_body=html,
+                        to_email=email,
+                    )
+                    if sent:
+                        logger.info(f"Sent email to {email}")
+                    else:
+                        logger.error(f"Failed to send to {email}")
+                else:
+                    logger.info(f"No matching events for {email}")
+
+        # Fallback / Admin copy
         recipient = os.environ.get("RECIPIENT_EMAIL")
-        if recipient:
-            logger.info(f"Sending email to {recipient}")
-            sent = send_email(
-                subject=f"Valencia Events - {target_date.strftime('%d %b')}",
+        if recipient and not any(u["email"] == recipient for u in active_users):
+            logger.info(f"Sending admin copy to {recipient}")
+            html = build_html(tomorrow_events, target_date)
+            send_email(
+                subject=f"Valencia Events (Admin) - {target_date.strftime('%d %b')}",
                 html_body=html,
                 to_email=recipient,
             )
-            if sent:
-                logger.info("Email sent successfully")
-            else:
-                logger.error("Failed to send email")
-        else:
-            logger.warning("No RECIPIENT_EMAIL configured, skipping email")
     else:
         logger.info("No events for tomorrow, skipping email")
 
