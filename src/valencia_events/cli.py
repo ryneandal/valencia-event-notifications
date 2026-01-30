@@ -17,8 +17,27 @@ from .storage import EventStorage
 # Get logger
 logger = get_logger(__name__)
 
+app = typer.Typer()
 
-def main():
+
+@app.command()
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    reload: bool = False,
+):
+    """Start the user management web server."""
+    import uvicorn
+    uvicorn.run(
+        "valencia_events.web.app:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
+@app.command()
+def run():
     """Main entry point for the digest workflow.
 
     Workflow:
@@ -81,5 +100,9 @@ def main():
     storage.close()
 
 
+def main():
+    """Entry point for script execution."""
+    app()
+
 if __name__ == "__main__":
-    typer.run(main)
+    main()

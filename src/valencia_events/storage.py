@@ -165,10 +165,36 @@ class EventStorage:
                 )
         return events
 
+    def get_user_by_email(self, email: str) -> dict | None:
+        """Get user by email address."""
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM users WHERE email = ?",
+                (email,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def update_user_preferences(
+        self, email: str, preferences: str, is_active: bool = True
+    ) -> None:
+        """Create or update user preferences."""
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO users (email, preferences, is_active)
+                VALUES (?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
+                    preferences = excluded.preferences,
+                    is_active = excluded.is_active,
+                    created_at = created_at
+                """,
+                (email, preferences, is_active),
+            )
+
     def close(self):
         """Close database connection."""
-        # Connections are context managed in methods, nothing to close
-        # unless we kept a persistent self.conn
         pass
 
 

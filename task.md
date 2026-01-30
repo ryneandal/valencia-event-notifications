@@ -20,6 +20,7 @@
     - [x] CI/CD (`nightly_digest.yml`)
 
 - [ ] **User Management** (See [specs/user_management.md](specs/user_management.md))
+    - [x] Implement User Model & Database migration (`users` and `users_events` tables added)
     - [ ] Select hosting/DB strategy (Persistent storage vs GHA artifacts)
     - [ ] Web App skeleton (FastAPI)
     - [ ] Google Sign-in implementation
