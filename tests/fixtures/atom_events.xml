@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Valencia Atom Feed</title>
+  <entry>
+    <title>Atom Family Workshop</title>
+    <link href="https://example.com/atom-workshop" />
+    <updated>2025-10-20T10:00:00+02:00</updated>
+    <summary>Interactive workshop for kids.</summary>
+  </entry>
+</feed>

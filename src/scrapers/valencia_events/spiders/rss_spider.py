@@ -32,13 +32,18 @@ class RSSSpider(scrapy.Spider):
 
         for node in self._iter_items(root):
             title = self._clean(self._child_text(node, "title"))
-            link = self._clean(self._child_text(node, "link"))
+            link = self._clean(
+                self._child_text(node, "link") or self._child_attr(node, "link", "href")
+            )
             description = self._clean(
                 self._child_text(node, "description")
+                or self._child_text(node, "summary")
+                or self._child_text(node, "content")
                 or self._child_text(node, "encoded")
             )
             raw_date = self._clean(
                 self._child_text(node, "pubDate")
+                or self._child_text(node, "published")
                 or self._child_text(node, "updated")
                 or self._child_text(node, "date")
             )
@@ -58,7 +63,7 @@ class RSSSpider(scrapy.Spider):
     @staticmethod
     def _iter_items(root: ET.Element):
         for node in root.iter():
-            if node.tag.split("}")[-1] == "item":
+            if node.tag.split("}")[-1] in {"item", "entry"}:
                 yield node
 
     @staticmethod
@@ -66,6 +71,15 @@ class RSSSpider(scrapy.Spider):
         for child in node:
             if child.tag.split("}")[-1] == child_name:
                 return child.text or ""
+        return ""
+
+    @staticmethod
+    def _child_attr(node: ET.Element, child_name: str, attr_name: str) -> str:
+        for child in node:
+            if child.tag.split("}")[-1] == child_name:
+                value = child.attrib.get(attr_name, "")
+                if value:
+                    return value
         return ""
 
     @staticmethod

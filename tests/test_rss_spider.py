@@ -10,6 +10,7 @@ from scrapers.valencia_events.spiders.rss_spider import RSSSpider
 
 AJUNTAMENT_FIXTURE = Path("tests/fixtures/ajuntament_rss.xml")
 ELPERIODIC_FIXTURE = Path("tests/fixtures/elperiodic_valencia_rss.xml")
+ATOM_FIXTURE = Path("tests/fixtures/atom_events.xml")
 
 
 def _response_from_fixture(path: Path, url: str) -> TextResponse:
@@ -53,3 +54,17 @@ def test_spider_produces_items(fixture: Path, url: str, source: str):
 def test_spider_settings():
     spider = RSSSpider(feed_url="https://example.com/feed.xml", source="rss_test")
     assert spider.custom_settings["DOWNLOAD_DELAY"] <= 1
+
+
+def test_spider_handles_atom_entry_feed():
+    spider = RSSSpider(feed_url="https://example.com/atom.xml", source="atom_source")
+    response = _response_from_fixture(ATOM_FIXTURE, "https://example.com/atom.xml")
+
+    results = list(spider.parse(response))
+    items = [r for r in results if isinstance(r, RawEventItem)]
+
+    assert len(items) == 1
+    first = items[0]
+    assert first["title"] == "Atom Family Workshop"
+    assert first["url"] == "https://example.com/atom-workshop"
+    assert first["source"] == "atom_source"

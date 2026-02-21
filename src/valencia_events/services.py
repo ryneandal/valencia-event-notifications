@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -64,10 +65,7 @@ def _run_single_spider(
     for key, value in args.items():
         cmd.extend(["-a", f"{key}={value}"])
 
-    logger.info(
-        "Running spider",
-        extra={"spider": spider_name, "spider_args": args},
-    )
+    logger.info(f"Running spider: {spider_name} args={args}")
     subprocess.run(
         cmd,
         check=True,
@@ -90,17 +88,20 @@ def run_scrapers() -> list[dict]:
         try:
             _run_single_spider(spider_name, args, output_file)
         except subprocess.CalledProcessError as exc:
-            logger.error(
-                "Spider failed",
-                extra={"spider": spider_name, "stderr": exc.stderr},
-            )
+            logger.error(f"Spider failed: {spider_name}. stderr={exc.stderr}")
             continue
 
-        all_raw_items.extend(_load_jsonl(output_file))
+        spider_items = _load_jsonl(output_file)
+        logger.info(f"Spider finished: {spider_name} items={len(spider_items)}")
+        all_raw_items.extend(spider_items)
 
     filtered_items = [raw for raw in all_raw_items if should_keep_raw_event(raw)]
+    source_counts = Counter(
+        str(item.get("source", "unknown")) for item in filtered_items
+    )
     logger.info(
-        "Collected raw events",
-        extra={"total": len(all_raw_items), "kept": len(filtered_items)},
+        "Collected raw events: "
+        f"total={len(all_raw_items)} kept={len(filtered_items)} "
+        f"source_counts={dict(source_counts)}"
     )
     return filtered_items
