@@ -147,7 +147,7 @@ class GeminiEventRanker:
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             return None
-        model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+        model = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
         return cls(api_key=api_key, model=model)
 
     def rank(
