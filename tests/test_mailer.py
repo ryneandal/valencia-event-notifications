@@ -29,12 +29,14 @@ class TestMailer:
                 url="https://example.com/1",
                 description="Desc 1",
                 source="test",
+                event_hash="hash1",
             ),
             Event(
                 title="Test Event 2",
                 start=datetime(2025, 10, 12, 14, 0),
                 url="https://example.com/2",
                 source="test",
+                event_hash="hash2",
             ),
         ]
 
@@ -49,6 +51,24 @@ class TestMailer:
         assert "Test Event 1" in html
         assert "Test Event 2" in html
         assert "Desc 1" in html
+
+    def test_build_html_with_personalization_feedback(self, sample_events):
+        """Test HTML includes LLM summary and per-event rationale."""
+        from datetime import datetime
+
+        from valencia_events.mailer import build_html
+
+        first_hash = sample_events[0].event_hash
+        html = build_html(
+            sample_events,
+            datetime(2025, 10, 12),
+            personalization_summary="Chosen for daytime family-friendly options.",
+            event_feedback={first_hash: "Interactive activity with easy transit."},
+        )
+        assert "Why these events were chosen" in html
+        assert "Chosen for daytime family-friendly options." in html
+        assert "Why this matches your family:" in html
+        assert "Interactive activity with easy transit." in html
 
     def test_build_html_empty_events(self):
         """Test HTML building with no events."""

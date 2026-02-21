@@ -15,12 +15,19 @@ from jinja2 import Environment, FileSystemLoader
 from .models import Event
 
 
-def build_html(events: list[Event], date: datetime) -> str:
+def build_html(
+    events: list[Event],
+    date: datetime,
+    personalization_summary: str | None = None,
+    event_feedback: dict[str, str] | None = None,
+) -> str:
     """Build HTML email body from list of events.
 
     Args:
         events: List of events to include in digest
         date: Date for the digest (e.g., tomorrow's date)
+        personalization_summary: Optional top-level explanation from LLM ranking
+        event_feedback: Optional per-event rationale keyed by event_hash
 
     Returns:
         HTML string for email body
@@ -31,7 +38,12 @@ def build_html(events: list[Event], date: datetime) -> str:
     env = Environment(loader=FileSystemLoader(templates_dir))
     template = env.get_template("digest.html")
 
-    return template.render(events=events, date_str=date_str)
+    return template.render(
+        events=events,
+        date_str=date_str,
+        personalization_summary=personalization_summary,
+        event_feedback=event_feedback or {},
+    )
 
 
 def send_email(

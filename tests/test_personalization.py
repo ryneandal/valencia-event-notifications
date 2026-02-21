@@ -38,6 +38,7 @@ class FakeRanker(GeminiEventRanker):
         return PersonalizedSelection(
             events=list(reversed(events))[:limit],
             summary="Picked family-friendly options.",
+            feedback_by_hash={"b": "Daytime, interactive, and easy to access."},
             used_llm=True,
         )
 
@@ -64,4 +65,37 @@ def test_rank_events_for_family_with_custom_ranker():
     selection = rank_events_for_family(events, limit=2, ranker=FakeRanker())
     assert selection.used_llm is True
     assert selection.summary == "Picked family-friendly options."
+    assert [event.title for event in selection.events] == ["B", "A"]
+
+
+def test_gemini_ranker_falls_back_to_secondary_model(monkeypatch):
+    from valencia_events.personalization import GeminiRankedEvent, GeminiRankingResponse
+
+    ranker = GeminiEventRanker(
+        api_key="x",
+        model="gemini-3-flash-preview",
+        fallback_model="gemini-2.5-pro",
+    )
+    events = [_event("A", "a"), _event("B", "b")]
+    calls: list[str] = []
+
+    def fake_invoke_model(*, model, family_profile, event_payload, limit):  # noqa: ANN001
+        del family_profile, event_payload, limit
+        calls.append(model)
+        if model == "gemini-3-flash-preview":
+            raise RuntimeError("503")
+        return GeminiRankingResponse(
+            summary="Fallback model worked.",
+            selected_events=[
+                GeminiRankedEvent(event_hash="b", reason="Better fit."),
+                GeminiRankedEvent(event_hash="a", reason="Also suitable."),
+            ],
+            selected_event_hashes=["b", "a"],
+        )
+
+    monkeypatch.setattr(ranker, "_invoke_model", fake_invoke_model)
+    selection = ranker.rank(events, family_profile={"audience": "test"}, limit=2)
+
+    assert calls == ["gemini-3-flash-preview", "gemini-2.5-pro"]
+    assert selection.used_llm is True
     assert [event.title for event in selection.events] == ["B", "A"]

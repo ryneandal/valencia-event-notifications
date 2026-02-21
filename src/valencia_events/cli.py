@@ -72,7 +72,12 @@ def main():
     # 5. Build & Send email
     if digest_events:
         target_date = digest_events[0].start  # date already constrained to tomorrow
-        html = build_html(digest_events, target_date)
+        html = build_html(
+            digest_events,
+            target_date,
+            personalization_summary=selection.summary,
+            event_feedback=selection.feedback_by_hash,
+        )
 
         recipient = os.environ.get("RECIPIENT_EMAIL")
         if recipient:
