@@ -19,6 +19,7 @@ class TestMailer:
     def sample_events(self):
         """Create sample events for email testing."""
         from datetime import datetime
+
         from valencia_events.models import Event
         return [
             Event(
@@ -39,8 +40,9 @@ class TestMailer:
     def test_build_html(self, sample_events):
         """Test HTML email building."""
         from datetime import datetime
+
         from valencia_events.mailer import build_html
-        
+
         html = build_html(sample_events, datetime(2025, 10, 12))
         assert "<html>" in html
         assert "Test Event 1" in html
@@ -50,8 +52,9 @@ class TestMailer:
     def test_build_html_empty_events(self):
         """Test HTML building with no events."""
         from datetime import datetime
+
         from valencia_events.mailer import build_html
-        
+
         html = build_html([], datetime(2025, 10, 12))
         assert "No events found" in html
 
@@ -59,12 +62,13 @@ class TestMailer:
     def test_send_email_success(self, mock_smtp):
         """Test email sending with mocked SMTP."""
         import os
+
         from valencia_events.mailer import send_email
-        
+
         # Mock env vars
         with patch.dict(os.environ, {"SMTP_USER": "u", "SMTP_APP_PASSWORD": "p"}):
             result = send_email("Subj", "Body", "to@example.com")
-            
+
         assert result is True
         mock_smtp.assert_called()
         instance = mock_smtp.return_value.__enter__.return_value
@@ -75,8 +79,9 @@ class TestMailer:
     def test_send_email_missing_credentials(self):
         """Test that missing credentials raise ValueError."""
         import os
+
         from valencia_events.mailer import send_email
-        
+
         # Clear env vars
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError):

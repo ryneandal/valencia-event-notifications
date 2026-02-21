@@ -11,7 +11,8 @@ from pathlib import Path
 from .models import Event
 
 
-# Register adapters and converters for datetime to avoid Python 3.12 deprecation warnings
+# Register adapters and converters for datetime to avoid
+# Python 3.12 deprecation warnings.
 def adapt_datetime(dt: datetime) -> str:
     """Adapt datetime to ISO 8601 string."""
     return dt.isoformat(sep=" ")
@@ -101,7 +102,9 @@ class EventStorage:
             with self._get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO events (event_hash, title, start, url, description, source)
+                    INSERT INTO events (
+                        event_hash, title, start, url, description, source
+                    )
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (

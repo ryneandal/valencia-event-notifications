@@ -27,13 +27,14 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
       
-      # Download previous database if it exists (for deduplication)
-      - name: Download previous database
-        uses: actions/download-artifact@v4
+      # Restore previous database cache if it exists (for deduplication)
+      - name: Restore database cache
+        uses: actions/cache/restore@v4
         with:
-          name: events-database
-          path: .
-        continue-on-error: true
+          path: events.db
+          key: events-db-${{ github.run_id }}
+          restore-keys: |
+            events-db-
       
       - name: Run scrapers and send digest
         env:
@@ -44,11 +45,10 @@ jobs:
         run: |
           python -m valencia_events
       
-      # Upload database for next run (30-day retention)
-      - name: Upload database
-        uses: actions/upload-artifact@v4
+      # Save database cache for next run (for deduplication)
+      - name: Save database cache
+        uses: actions/cache/save@v4
         with:
-          name: events-database
           path: events.db
-          retention-days: 30
+          key: events-db-${{ github.run_id }}
         if: always()

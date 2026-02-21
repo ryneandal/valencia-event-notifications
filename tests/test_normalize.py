@@ -57,7 +57,8 @@ class TestNormalize:
 
     def test_normalize_rfc822_format(self):
         """Test normalization of RFC 822 format (RSS)."""
-        # Note: RFC 822 not fully implemented in initial pass, but ISO fallback might catch if structured well.
+        # Note: RFC 822 is not fully implemented in the initial pass.
+        # ISO fallback might catch it if input is already structured well.
         # For now, let's test a format we know works or skip if strictly required.
         # Implementation is iso-centric.
         pass

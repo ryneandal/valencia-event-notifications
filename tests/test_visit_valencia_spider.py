@@ -30,7 +30,10 @@ def response() -> HtmlResponse:
     )
 
 
-def test_parse_cards_extracts_items(spider: VisitValenciaSpider, response: HtmlResponse):
+def test_parse_cards_extracts_items(
+    spider: VisitValenciaSpider,
+    response: HtmlResponse,
+):
     """Ensure event cards are parsed into RawEventItems."""
     results = list(spider.parse(response))
     items = [r for r in results if isinstance(r, RawEventItem)]

@@ -38,7 +38,7 @@ def run_scrapers() -> list[dict]:
 
     raw_events = []
     if output_file.exists():
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             for line in f:
                 if line.strip():
                     try:
