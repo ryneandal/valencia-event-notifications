@@ -49,6 +49,7 @@ def test_load_family_profile_from_env(monkeypatch):
 
 
 def test_rank_events_for_family_fallback_without_api_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     events = [_event("B", "b", 11), _event("A", "a", 10)]
 
