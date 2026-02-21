@@ -48,6 +48,6 @@ def test_run_scrapers_aggregates_and_filters(monkeypatch, tmp_path):
 
     assert "ivam" not in sources
     assert "valencia_secreta" in sources
-    assert "ajuntament_rss" in sources
+    assert "ajuntament_agenda" in sources
     assert "elperiodic_rss" in sources
     assert all(item["title"] != "Editorial sponsored content" for item in raw_items)

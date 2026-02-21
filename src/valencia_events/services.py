@@ -15,18 +15,11 @@ logger = get_logger(__name__)
 
 SCRAPER_RUNS: list[dict[str, Any]] = [
     {"name": "visit_valencia", "args": {}},
+    {"name": "ajuntament_agenda", "args": {}},
     {
         "name": "rss",
         "args": {
-            "feed_url": "http://www.valencia.es/ayuntamiento/"
-            "agenda_accesible.nsf/agenda.xml",
-            "source": "ajuntament_rss",
-        },
-    },
-    {
-        "name": "rss",
-        "args": {
-            "feed_url": "https://www.elperiodic.com/rss/valencia/",
+            "feed_url": "https://www.elperiodic.com/feed/rss_valencia.xml",
             "source": "elperiodic_rss",
         },
     },

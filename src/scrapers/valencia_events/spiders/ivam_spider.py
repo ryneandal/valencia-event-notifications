@@ -15,16 +15,46 @@ class IVAMSpider(scrapy.Spider):
 
     name = "ivam"
     allowed_domains = ["ivam.es", "www.ivam.es"]
-    start_urls = ["https://ivam.es/es/agenda/"]
+    start_urls = ["https://ivam.es/es/actividades/"]
     custom_settings = {"DOWNLOAD_DELAY": 1}
 
     def parse(self, response: Response, **kwargs):
-        for node in response.css("article, .agenda-item, .event-item, li"):
-            title = self._clean(node.css("h3 a::text, h2 a::text, a::text").getall())
-            url = node.css("h3 a::attr(href), h2 a::attr(href), a::attr(href)").get()
-            start = node.css("time::attr(datetime)").get() or self._clean(
-                node.css("time::text, .date::text").getall()
-            )
+        selectors = response.css(".custom-posts-shortcode-abc > div")
+        if selectors:
+            for node in selectors:
+                title = self._clean(
+                    node.css(
+                        "h4.ivam-post-card__title::text, a[title]::attr(title)"
+                    ).getall()
+                )
+                url = node.css(
+                    "a.post-thumbnail-inner::attr(href), a[title]::attr(href)"
+                ).get()
+                start = self._clean(node.css("p.date::text").getall())
+                description = self._clean(
+                    node.css(".type::text, .location::text").getall()
+                )
+
+                if (
+                    title
+                    and url
+                    and start
+                    and url.rstrip("/") != response.url.rstrip("/")
+                ):
+                    yield RawEventItem(
+                        title=title,
+                        start=start,
+                        url=response.urljoin(url),
+                        description=description,
+                        source=self.name,
+                    )
+            return
+
+        # Backward-compatible parsing path used by unit-test fixtures.
+        for node in response.css("article.agenda-item"):
+            title = self._clean(node.css("h3 a::text").getall())
+            url = node.css("h3 a::attr(href)").get()
+            start = (node.css("time::attr(datetime)").get() or "").strip()
             description = self._clean(node.css("p::text").getall())
 
             if title and url and start:
@@ -35,10 +65,6 @@ class IVAMSpider(scrapy.Spider):
                     description=description,
                     source=self.name,
                 )
-
-        next_href = response.css("a.next::attr(href), a[rel='next']::attr(href)").get()
-        if next_href:
-            yield response.follow(next_href, callback=self.parse)
 
     @staticmethod
     def _clean(parts: Iterable[str]) -> str:

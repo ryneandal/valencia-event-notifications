@@ -31,7 +31,7 @@ def _response_from_fixture(path: Path, url: str) -> TextResponse:
         ),
         (
             ELPERIODIC_FIXTURE,
-            "https://www.elperiodic.com/valencia/rss",
+            "https://www.elperiodic.com/feed/rss_valencia.xml",
             "elperiodic_rss",
         ),
     ],

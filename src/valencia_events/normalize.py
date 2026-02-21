@@ -30,6 +30,20 @@ SPANISH_MONTHS = {
     "noviembre": 11,
     "diciembre": 12,
 }
+SPANISH_MONTHS_ABBR = {
+    "ene": 1,
+    "feb": 2,
+    "mar": 3,
+    "abr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "ago": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dic": 12,
+}
 
 
 def normalize_raw(raw_item: dict[str, Any]) -> Event:
@@ -81,11 +95,18 @@ def parse_datetime(date_string: str) -> datetime:
         Timezone-aware datetime in Europe/Madrid timezone
     """
     date_string = date_string.strip()
+    lower_str = date_string.lower()
 
-    # 1. Handle ranges like "From 28/11/2025 to ..."
+    # 1. Handle ranges like "From 28/11/2025 to ..." and "Del SA 28.02.26 ..."
     range_match = re.search(r"(\d{1,2}/\d{1,2}/\d{4})", date_string, re.IGNORECASE)
     if date_string.lower().startswith("from ") and range_match:
         date_string = range_match.group(1)
+        lower_str = date_string.lower()
+
+    dot_range_match = re.search(r"(\d{1,2}\.\d{1,2}\.\d{2,4})", date_string)
+    if dot_range_match and ("del " in lower_str or " al " in lower_str):
+        date_string = dot_range_match.group(1)
+        lower_str = date_string.lower()
 
     dt: datetime | None = None
 
@@ -103,33 +124,70 @@ def parse_datetime(date_string: str) -> datetime:
         except ValueError:
             pass
 
-    # 4. Try Spanish format "12 de octubre de 2025" or with time
+    # 4. Try DD.MM.YY or DD.MM.YYYY (+ optional hour)
     if not dt:
-        lower_str = date_string.lower()
+        dot_match = re.search(
+            r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?:\D+(\d{1,2}):(\d{2}))?",
+            date_string,
+        )
+        if dot_match:
+            day, month, year, hour, minute = dot_match.groups()
+            year_num = int(year)
+            if year_num < 100:
+                year_num += 2000
+            dt = datetime(
+                year_num,
+                int(month),
+                int(day),
+                int(hour) if hour else 12,
+                int(minute) if minute else 0,
+            )
+
+    # 5. Try Spanish format "12 de octubre de 2025" or with time
+    if not dt:
         for month_name, month_num in SPANISH_MONTHS.items():
             if month_name in lower_str:
-                # Replace month name with number
-                # "12 de octubre de 2025" -> "12 10 2025" (approx logic)
-                # Pattern: (\d+) de (\w+) de (\d+)
                 match = re.search(
-                    r"(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:\s+(\d+):(\d+))?", lower_str
+                    r"(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:\s+(\d+):(\d+))?",
+                    lower_str,
                 )
                 if match:
                     d, m_name, y, h, minute = match.groups()
                     if m_name == month_name:
-                        h = int(h) if h else 12
-                        minute = int(minute) if minute else 0
-                        dt = datetime(int(y), month_num, int(d), h, minute)
+                        dt = datetime(
+                            int(y),
+                            month_num,
+                            int(d),
+                            int(h) if h else 12,
+                            int(minute) if minute else 0,
+                        )
                 break
 
-    # 5. Try RFC 822 (common in RSS pubDate fields)
+    # 6. Try abbreviated Spanish dates (e.g. "21 feb. 2026" or with time)
+    if not dt:
+        abbr_match = re.search(
+            r"(\d{1,2})\s+([a-z]{3})\.?\s+(\d{4})(?:\D+(\d{1,2}):(\d{2}))?",
+            lower_str,
+        )
+        if abbr_match:
+            d, month_abbr, y, hour, minute = abbr_match.groups()
+            if month_abbr in SPANISH_MONTHS_ABBR:
+                dt = datetime(
+                    int(y),
+                    SPANISH_MONTHS_ABBR[month_abbr],
+                    int(d),
+                    int(hour) if hour else 12,
+                    int(minute) if minute else 0,
+                )
+
+    # 7. Try RFC 822 (common in RSS pubDate fields)
     if not dt:
         try:
             dt = parsedate_to_datetime(date_string)
         except (TypeError, ValueError):
             pass
 
-    # 6. Fallback: ISO format (from utils or other scrapers)
+    # 8. Fallback: ISO format (from utils or other scrapers)
     if not dt:
         try:
             normalized = date_string.replace("Z", "+00:00")
