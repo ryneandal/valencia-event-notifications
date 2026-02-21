@@ -1,43 +1,55 @@
-"""Tests for RSS feed spider.
+"""Tests for RSS feed spider."""
 
-Test acceptance criteria:
-- Spider produces at least one item with non-empty title
-- Spider produces valid ISO datetime string in 'start' field
-- Spider respects robots.txt
-- DOWNLOAD_DELAY <= 1 second
-"""
+from pathlib import Path
 
 import pytest
+from scrapy.http import TextResponse
+
+from scrapers.valencia_events.items import RawEventItem
+from scrapers.valencia_events.spiders.rss_spider import RSSSpider
+
+AJUNTAMENT_FIXTURE = Path("tests/fixtures/ajuntament_rss.xml")
+ELPERIODIC_FIXTURE = Path("tests/fixtures/elperiodic_valencia_rss.xml")
 
 
-class TestRSSSpider:
-    """Test suite for RSS feed spider."""
+def _response_from_fixture(path: Path, url: str) -> TextResponse:
+    return TextResponse(
+        url=url,
+        body=path.read_bytes(),
+        encoding="utf-8",
+    )
 
-    @pytest.fixture
-    def spider(self):
-        """Create spider instance for testing."""
-        # TODO: Import and instantiate RSS spider
-        # from scrapers.valencia_events.spiders.rss_spider import RSSSpider
-        # return RSSSpider()
-        pytest.skip("RSS spider not yet implemented")
 
-    @pytest.fixture
-    def rss_fixture(self):
-        """Load RSS XML fixture."""
-        # TODO: Load tests/fixtures/valencia_rss.xml
-        pytest.skip("RSS fixture not yet created")
+@pytest.mark.parametrize(
+    ("fixture", "url", "source"),
+    [
+        (
+            AJUNTAMENT_FIXTURE,
+            "https://www.valencia.es/agenda.xml",
+            "ajuntament_rss",
+        ),
+        (
+            ELPERIODIC_FIXTURE,
+            "https://www.elperiodic.com/valencia/rss",
+            "elperiodic_rss",
+        ),
+    ],
+)
+def test_spider_produces_items(fixture: Path, url: str, source: str):
+    spider = RSSSpider(feed_url=url, source=source)
+    response = _response_from_fixture(fixture, url)
 
-    def test_spider_produces_items(self, spider, rss_fixture):
-        """Test that spider produces items from RSS feed."""
-        # TODO: Implement test
-        # - Create fake response from fixture
-        # - Call spider.parse()
-        # - Assert at least one item yielded
-        # - Assert item has non-empty title
-        # - Assert item has valid datetime in start field
-        pytest.skip("Test not yet implemented")
+    results = list(spider.parse(response))
+    items = [r for r in results if isinstance(r, RawEventItem)]
 
-    def test_spider_settings(self, spider):
-        """Test spider has correct settings."""
-        # TODO: Verify DOWNLOAD_DELAY <= 1
-        pytest.skip("Test not yet implemented")
+    assert len(items) >= 1
+    first = items[0]
+    assert first["title"]
+    assert first["url"].startswith("http")
+    assert first["source"] == source
+    assert "T" in first["start"] or "+" in first["start"]
+
+
+def test_spider_settings():
+    spider = RSSSpider(feed_url="https://example.com/feed.xml", source="rss_test")
+    assert spider.custom_settings["DOWNLOAD_DELAY"] <= 1

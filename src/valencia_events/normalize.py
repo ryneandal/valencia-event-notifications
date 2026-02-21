@@ -6,6 +6,7 @@ into standardized Event objects with timezone-aware datetimes.
 
 import re
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import pytz
@@ -81,17 +82,17 @@ def parse_datetime(date_string: str) -> datetime:
     """
     date_string = date_string.strip()
 
-    # 1. Handle ranges "From 28/11/2025 to ..."
-    if date_string.lower().startswith("from "):
-        match = re.search(r"From (\d{2}/\d{2}/\d{4})", date_string, re.IGNORECASE)
-        if match:
-            date_string = match.group(1)
+    # 1. Handle ranges like "From 28/11/2025 to ..."
+    range_match = re.search(r"(\d{1,2}/\d{1,2}/\d{4})", date_string, re.IGNORECASE)
+    if date_string.lower().startswith("from ") and range_match:
+        date_string = range_match.group(1)
 
     dt: datetime | None = None
 
-    # 2. Try simple DD/MM/YYYY
+    # 2. Try simple DD/MM/YYYY (default to noon for date-only values)
     try:
-        dt = datetime.strptime(date_string, "%d/%m/%Y")
+        parsed = datetime.strptime(date_string, "%d/%m/%Y")
+        dt = parsed.replace(hour=12, minute=0, second=0, microsecond=0)
     except ValueError:
         pass
 
@@ -116,15 +117,23 @@ def parse_datetime(date_string: str) -> datetime:
                 if match:
                     d, m_name, y, h, minute = match.groups()
                     if m_name == month_name:
-                        h = int(h) if h else 0
+                        h = int(h) if h else 12
                         minute = int(minute) if minute else 0
                         dt = datetime(int(y), month_num, int(d), h, minute)
                 break
 
-    # 5. Fallback: ISO format (from utils or other scrapers)
+    # 5. Try RFC 822 (common in RSS pubDate fields)
     if not dt:
         try:
-            dt = datetime.fromisoformat(date_string)
+            dt = parsedate_to_datetime(date_string)
+        except (TypeError, ValueError):
+            pass
+
+    # 6. Fallback: ISO format (from utils or other scrapers)
+    if not dt:
+        try:
+            normalized = date_string.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(normalized)
         except ValueError:
             pass
 

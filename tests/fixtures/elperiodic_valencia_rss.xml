@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>elperiodic Valencia</title>
+    <item>
+      <title>Feria gastronómica en Valencia</title>
+      <link>https://www.elperiodic.com/valencia/feria-gastronomica_12345</link>
+      <description>Agenda de fin de semana en Valencia.</description>
+      <dc:date>2025-10-15T18:30:00+02:00</dc:date>
+    </item>
+  </channel>
+</rss>

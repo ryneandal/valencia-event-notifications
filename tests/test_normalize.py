@@ -60,11 +60,31 @@ class TestNormalize:
 
     def test_normalize_rfc822_format(self):
         """Test normalization of RFC 822 format (RSS)."""
-        # Note: RFC 822 is not fully implemented in the initial pass.
-        # ISO fallback might catch it if input is already structured well.
-        # For now, let's test a format we know works or skip if strictly required.
-        # Implementation is iso-centric.
-        pass
+        from valencia_events.normalize import normalize_raw
+
+        raw = {
+            "title": "RSS Event",
+            "start": "Sat, 12 Oct 2025 20:00:00 +0200",
+            "url": "https://example.com",
+        }
+        event = normalize_raw(raw)
+        assert event.start.year == 2025
+        assert event.start.month == 10
+        assert event.start.day == 12
+        assert event.start.hour == 20
+
+    def test_date_only_defaults_to_noon(self):
+        """Test date-only values default to 12:00 in Europe/Madrid."""
+        from valencia_events.normalize import normalize_raw
+
+        raw = {
+            "title": "Date Only Event",
+            "start": "12/10/2025",
+            "url": "https://example.com/date-only",
+        }
+        event = normalize_raw(raw)
+        assert event.start.hour == 12
+        assert event.start.minute == 0
 
     def test_invalid_date_raises_error(self):
         """Test that invalid date string raises ValueError."""
