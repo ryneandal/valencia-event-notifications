@@ -25,6 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -e .
       
       # Download previous database if it exists (for deduplication)
       - name: Download previous database
@@ -41,7 +42,7 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
         run: |
-          python runner.py
+          python -m valencia_events
       
       # Upload database for next run (30-day retention)
       - name: Upload database
