@@ -64,7 +64,10 @@ def _run_single_spider(
     for key, value in args.items():
         cmd.extend(["-a", f"{key}={value}"])
 
-    logger.info("Running spider", extra={"spider": spider_name, "args": args})
+    logger.info(
+        "Running spider",
+        extra={"spider": spider_name, "spider_args": args},
+    )
     subprocess.run(
         cmd,
         check=True,
