@@ -22,3 +22,16 @@ def filter_events_for_tomorrow(events: list[Event]) -> list[Event]:
     tomorrow = (now + timedelta(days=1)).date()
 
     return [event for event in events if event.start.date() == tomorrow]
+
+
+def rank_and_limit_events(events: list[Event], limit: int = 20) -> list[Event]:
+    """Apply deterministic ranking and cap the number of events."""
+    ranked = sorted(
+        events,
+        key=lambda event: (
+            event.start,
+            event.source.lower(),
+            event.title.lower(),
+        ),
+    )
+    return ranked[:limit]

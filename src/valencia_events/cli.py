@@ -1,17 +1,20 @@
 import os
 
 import typer
+from dotenv import load_dotenv
 
 from .filters import filter_events_for_tomorrow
 from .logger import configure_logging, get_logger
 from .mailer import build_html, send_email
 from .models import Event
 from .normalize import normalize_raw
+from .personalization import rank_events_for_family
 from .services import run_scrapers
 from .storage import EventStorage
 
 # Get logger
 logger = get_logger(__name__)
+MAX_EMAIL_EVENTS = 20
 
 
 def main():
@@ -25,6 +28,7 @@ def main():
     5. Build HTML email
     6. Send email
     """
+    load_dotenv()
     configure_logging()
     logger.info("Starting Valencia Events digest workflow")
 
@@ -51,11 +55,24 @@ def main():
     # 4. Filter for tomorrow
     tomorrow_events = filter_events_for_tomorrow(events)
     logger.info(f"Found {len(tomorrow_events)} events for tomorrow")
+    selection = rank_events_for_family(tomorrow_events, limit=MAX_EMAIL_EVENTS)
+    digest_events = selection.events
+    logger.info(
+        "Prepared digest events",
+        extra={
+            "selected": len(digest_events),
+            "available": len(tomorrow_events),
+            "limit": MAX_EMAIL_EVENTS,
+            "used_llm": selection.used_llm,
+        },
+    )
+    if selection.summary:
+        logger.info(f"Personalization summary: {selection.summary}")
 
     # 5. Build & Send email
-    if tomorrow_events:
-        target_date = tomorrow_events[0].start  # approximate date
-        html = build_html(tomorrow_events, target_date)
+    if digest_events:
+        target_date = digest_events[0].start  # date already constrained to tomorrow
+        html = build_html(digest_events, target_date)
 
         recipient = os.environ.get("RECIPIENT_EMAIL")
         if recipient:
