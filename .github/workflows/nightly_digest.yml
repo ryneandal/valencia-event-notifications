@@ -20,12 +20,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
       
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          uv sync
       
       # Restore previous database cache if it exists (for deduplication)
       - name: Restore database cache
@@ -43,7 +44,7 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
         run: |
-          python -m valencia_events
+          uv run python -m valencia_events
       
       # Save database cache for next run (for deduplication)
       - name: Save database cache

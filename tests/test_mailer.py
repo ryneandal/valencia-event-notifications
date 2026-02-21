@@ -21,20 +21,21 @@ class TestMailer:
         from datetime import datetime
 
         from valencia_events.models import Event
+
         return [
             Event(
                 title="Test Event 1",
                 start=datetime(2025, 10, 12, 10, 0),
                 url="https://example.com/1",
                 description="Desc 1",
-                source="test"
+                source="test",
             ),
             Event(
                 title="Test Event 2",
                 start=datetime(2025, 10, 12, 14, 0),
                 url="https://example.com/2",
-                source="test"
-            )
+                source="test",
+            ),
         ]
 
     def test_build_html(self, sample_events):

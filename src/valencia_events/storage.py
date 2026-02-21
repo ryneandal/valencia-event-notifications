@@ -17,9 +17,11 @@ def adapt_datetime(dt: datetime) -> str:
     """Adapt datetime to ISO 8601 string."""
     return dt.isoformat(sep=" ")
 
+
 def convert_timestamp(val: bytes) -> datetime:
     """Convert valid ISO 8601 byte string to datetime."""
     return datetime.fromisoformat(val.decode())
+
 
 sqlite3.register_adapter(datetime, adapt_datetime)
 sqlite3.register_converter("TIMESTAMP", convert_timestamp)

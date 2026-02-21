@@ -29,8 +29,7 @@ class TestUserStorage:
         """Test that user tables are created correctly."""
         with storage._get_connection() as conn:
             cur = conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='users'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
             )
             assert cur.fetchone() is not None
 
@@ -45,7 +44,7 @@ class TestUserStorage:
         with storage._get_connection() as conn:
             conn.execute(
                 "INSERT INTO users (email, preferences) VALUES (?, ?)",
-                ("test@example.com", "I like hiking")
+                ("test@example.com", "I like hiking"),
             )
 
             cur = conn.execute(
@@ -60,7 +59,7 @@ class TestUserStorage:
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO users (email, preferences) VALUES (?, ?)",
-                    ("test@example.com", "duplicate")
+                    ("test@example.com", "duplicate"),
                 )
 
     def test_user_events_join(self, storage):
@@ -74,13 +73,13 @@ class TestUserStorage:
 
             conn.execute(
                 "INSERT INTO events (event_hash, title, start) VALUES (?, ?, ?)",
-                ("hash123", "Test Event", "2025-01-01")
+                ("hash123", "Test Event", "2025-01-01"),
             )
 
             conn.execute(
                 """INSERT INTO users_events (user_id, event_hash, relevance_score)
                    VALUES (?, ?, ?)""",
-                (user_id, "hash123", 0.95)
+                (user_id, "hash123", 0.95),
             )
 
             cur = conn.execute("SELECT * FROM users_events WHERE user_id=?", (user_id,))

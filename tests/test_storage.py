@@ -29,6 +29,7 @@ class TestEventStorage:
     def storage(self, temp_db):
         """Create storage instance with temp database."""
         from valencia_events.storage import EventStorage
+
         return EventStorage(temp_db)
 
     @pytest.fixture
@@ -37,12 +38,13 @@ class TestEventStorage:
         from datetime import datetime
 
         from valencia_events.models import Event
+
         return Event(
             title="Test Event",
             start=datetime(2025, 10, 12, 20, 0),
             url="https://example.com/test",
             description="Test description",
-            source="test"
+            source="test",
         )
 
     def test_store_event(self, storage, sample_event):
@@ -53,6 +55,7 @@ class TestEventStorage:
     def test_duplicate_detection(self, storage, sample_event):
         """Test that duplicate events are not inserted twice."""
         from valencia_events.storage import compute_event_hash
+
         sample_event.event_hash = compute_event_hash(sample_event)
 
         # Store first time
@@ -74,6 +77,7 @@ class TestEventStorage:
 
         # Mismatch date
         from datetime import timedelta
+
         events_empty = storage.get_events_for_date(
             sample_event.start + timedelta(days=1)
         )

@@ -26,4 +26,3 @@ class Event(BaseModel):
     description: str = Field(default="")
     source: str
     event_hash: str | None = None
-

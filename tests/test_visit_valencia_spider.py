@@ -50,10 +50,7 @@ def test_parse_cards_extracts_items(
         first["url"]
         == "https://www.visitvalencia.com/en/events-valencia/skating-rink-plaza-del-ayuntamiento"
     )
-    assert (
-        first["description"]
-        == "Pista patinaje Valencia.jpg"
-    )
+    assert first["description"] == "Pista patinaje Valencia.jpg"
     assert first["source"] == "visit_valencia"
 
 
