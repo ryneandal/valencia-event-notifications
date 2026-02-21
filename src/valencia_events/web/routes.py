@@ -41,6 +41,8 @@ async def dashboard(request: Request, storage: Annotated[EventStorage, Depends(g
     
     preferences = user_data["preferences"] if user_data else ""
     is_active = user_data["is_active"] if user_data and "is_active" in user_data else True
+    
+    passkeys = storage.get_passkeys_by_user(user_data["id"]) if user_data else []
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -49,6 +51,7 @@ async def dashboard(request: Request, storage: Annotated[EventStorage, Depends(g
             "user": user_session,
             "preferences": preferences,
             "is_active": is_active,
+            "passkeys": passkeys,
         },
     )
 

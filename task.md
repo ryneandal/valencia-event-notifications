@@ -24,7 +24,7 @@
     - [ ] Select hosting/DB strategy (Persistent storage vs GHA artifacts)
     - [x] Web App skeleton (FastAPI)
     - [x] Google Sign-in implementation
-    - [ ] Passkey implementation
+    - [x] Passkey implementation
     - [x] User Profile UI (Preferences input)
 
 - [ ] **AI Personalization** (See [specs/llm_filtering.md](specs/llm_filtering.md))

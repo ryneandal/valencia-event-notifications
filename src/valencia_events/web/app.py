@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .routes import router
 from .auth import auth_router
+from .auth_passkeys import router as passkeys_router
 
 
 @asynccontextmanager
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
 
     app.include_router(router)
     app.include_router(auth_router)
+    app.include_router(passkeys_router)
 
     return app
 

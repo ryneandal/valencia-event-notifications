@@ -79,6 +79,16 @@ class EventStorage:
                     FOREIGN KEY (user_id) REFERENCES users(id),
                     FOREIGN KEY (event_hash) REFERENCES events(event_hash)
                 );
+
+                CREATE TABLE IF NOT EXISTS passkeys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    credential_id TEXT UNIQUE NOT NULL,
+                    public_key TEXT NOT NULL,
+                    sign_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
             """)
 
     def store_event(self, event: Event) -> bool:
@@ -205,6 +215,38 @@ class EventStorage:
     def close(self):
         """Close database connection."""
         pass
+
+    def store_passkey(self, user_id: int, credential_id: str, public_key: str, sign_count: int) -> None:
+        """Store a new passkey credential."""
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO passkeys (user_id, credential_id, public_key, sign_count)
+                VALUES (?, ?, ?, ?)
+                """,
+                (user_id, credential_id, public_key, sign_count),
+            )
+
+    def get_passkeys_by_user(self, user_id: int) -> list[dict]:
+        """Get all passkeys for a user."""
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM passkeys WHERE user_id = ?",
+                (user_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_passkey_by_credential_id(self, credential_id: str) -> dict | None:
+        """Get passkey by credential ID."""
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM passkeys WHERE credential_id = ?",
+                (credential_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
 
 def compute_event_hash(event: Event) -> str:
