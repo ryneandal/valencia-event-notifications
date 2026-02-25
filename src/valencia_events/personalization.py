@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from dataclasses import dataclass
@@ -341,11 +342,31 @@ def load_family_profile() -> dict[str, Any]:
     return DEFAULT_FAMILY_PROFILE
 
 
+def build_profile_from_preferences_blob(
+    preferences_blob: str | None,
+) -> dict[str, Any]:
+    """Create effective family profile from stored user preference blob."""
+    if not preferences_blob:
+        return load_family_profile()
+
+    try:
+        parsed = json.loads(preferences_blob)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        logger.warning("Invalid preferences blob JSON; attaching as free-text signal")
+
+    profile = copy.deepcopy(load_family_profile())
+    profile["user_preferences_blob"] = preferences_blob
+    return profile
+
+
 def rank_events_for_family(
     events: list[Event],
     *,
     limit: int = 20,
     ranker: GeminiEventRanker | None = None,
+    family_profile: dict[str, Any] | None = None,
 ) -> PersonalizedSelection:
     """Rank events using Gemini when configured; fall back deterministically."""
     if not events:
@@ -356,7 +377,7 @@ def rank_events_for_family(
             used_llm=False,
         )
 
-    family_profile = load_family_profile()
+    family_profile = family_profile or load_family_profile()
     ranker = ranker or GeminiEventRanker.from_env()
 
     if not ranker:

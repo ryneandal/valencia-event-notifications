@@ -4,11 +4,12 @@ Handles database creation, event storage, and deduplication.
 """
 
 import hashlib
+import secrets
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from .models import Event
+from .models import Event, User
 
 
 # Register adapters and converters for datetime to avoid
@@ -82,7 +83,206 @@ class EventStorage:
                     FOREIGN KEY (user_id) REFERENCES users(id),
                     FOREIGN KEY (event_hash) REFERENCES events(event_hash)
                 );
+
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token_hash TEXT UNIQUE NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_users_is_active
+                ON users (is_active);
+
+                CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id
+                ON user_sessions (user_id);
             """)
+
+    @staticmethod
+    def _normalize_email(email: str) -> str:
+        normalized = email.strip().lower()
+        if not normalized or "@" not in normalized:
+            raise ValueError("Invalid email address")
+        return normalized
+
+    @staticmethod
+    def _token_hash(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _row_to_user(row: tuple) -> User:
+        user_id, email, preferences, is_active, created_at = row
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        return User(
+            id=user_id,
+            email=email,
+            preferences=preferences,
+            is_active=bool(is_active),
+            created_at=created_at,
+        )
+
+    def create_user(
+        self,
+        email: str,
+        preferences: str | None = None,
+        *,
+        is_active: bool = True,
+    ) -> User:
+        """Create a new user account."""
+        normalized_email = self._normalize_email(email)
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO users (email, preferences, is_active)
+                    VALUES (?, ?, ?)
+                    """,
+                    (normalized_email, preferences, int(is_active)),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"User already exists: {normalized_email}") from exc
+
+        user = self.get_user_by_email(normalized_email)
+        if user is None:
+            raise RuntimeError("Failed to create user")
+        return user
+
+    def get_user_by_email(self, email: str) -> User | None:
+        """Retrieve user by email address."""
+        normalized_email = self._normalize_email(email)
+        with self._get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, email, preferences, is_active, created_at
+                FROM users
+                WHERE email = ?
+                """,
+                (normalized_email,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_user(row)
+
+    def get_user_by_id(self, user_id: int) -> User | None:
+        """Retrieve user by ID."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, email, preferences, is_active, created_at
+                FROM users
+                WHERE id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_user(row)
+
+    def get_active_users(self) -> list[User]:
+        """Retrieve all users with active subscriptions."""
+        users: list[User] = []
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, email, preferences, is_active, created_at
+                FROM users
+                WHERE is_active = 1
+                ORDER BY id ASC
+                """
+            ).fetchall()
+        for row in rows:
+            users.append(self._row_to_user(row))
+        return users
+
+    def update_user_preferences(self, user_id: int, preferences: str | None) -> User:
+        """Update persisted preference blob for a user."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE users
+                SET preferences = ?
+                WHERE id = ?
+                """,
+                (preferences, user_id),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"User not found: {user_id}")
+
+        updated = self.get_user_by_id(user_id)
+        if updated is None:
+            raise RuntimeError("Failed to load updated user")
+        return updated
+
+    def create_user_session(self, user_id: int, *, ttl_hours: int = 24) -> str:
+        """Create a login session and return plaintext bearer token."""
+        token = secrets.token_urlsafe(32)
+        token_hash = self._token_hash(token)
+        expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
+
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_sessions (user_id, token_hash, expires_at)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, token_hash, expires_at),
+            )
+        return token
+
+    def get_user_by_session_token(self, session_token: str) -> User | None:
+        """Resolve bearer token to current user."""
+        token_hash = self._token_hash(session_token)
+        with self._get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    u.id,
+                    u.email,
+                    u.preferences,
+                    u.is_active,
+                    u.created_at,
+                    s.expires_at
+                FROM user_sessions AS s
+                INNER JOIN users AS u ON u.id = s.user_id
+                WHERE s.token_hash = ?
+                """,
+                (token_hash,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        user_row = row[:-1]
+        expires_at = row[-1]
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+
+        if expires_at <= datetime.now(UTC):
+            self.revoke_user_session(session_token)
+            return None
+
+        user = self._row_to_user(user_row)
+        if not user.is_active:
+            return None
+        return user
+
+    def revoke_user_session(self, session_token: str) -> bool:
+        """Invalidate an existing session token."""
+        token_hash = self._token_hash(session_token)
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM user_sessions
+                WHERE token_hash = ?
+                """,
+                (token_hash,),
+            )
+            return cursor.rowcount > 0
 
     def store_event(self, event: Event) -> bool:
         """Store an event in the database.

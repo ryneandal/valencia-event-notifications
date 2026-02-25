@@ -43,10 +43,9 @@ class ValenciaBonitaSpider(scrapy.Spider):
             ):
                 continue
 
-            start = (
-                article.css("time::attr(datetime)").get()
-                or self._extract_date_from_url(abs_url)
-            )
+            start = article.css(
+                "time::attr(datetime)"
+            ).get() or self._extract_date_from_url(abs_url)
             if not start:
                 continue
 

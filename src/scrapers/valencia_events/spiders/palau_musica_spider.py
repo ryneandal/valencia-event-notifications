@@ -53,7 +53,9 @@ class PalauMusicaSpider(scrapy.Spider):
             ).get()
             start = (node.css("time::attr(datetime)").get() or "").strip()
             description = self._clean(
-                node.css(".tribe-events-calendar-list__event-description::text").getall()
+                node.css(
+                    ".tribe-events-calendar-list__event-description::text"
+                ).getall()
             )
 
             if title and event_url and start:
