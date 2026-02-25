@@ -1,4 +1,5 @@
 import os
+from typing import Annotated
 
 import typer
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ from .mailer import build_html, send_email
 from .models import Event
 from .normalize import normalize_raw
 from .personalization import rank_events_for_family
+from .runner import fire_digest_for_user
 from .services import run_scrapers
 from .storage import EventStorage
 
@@ -17,7 +19,12 @@ logger = get_logger(__name__)
 MAX_EMAIL_EVENTS = 20
 
 
-def main():
+def main(
+    user_email: Annotated[
+        str | None,
+        typer.Option(help="Run digest for a specific registered user email"),
+    ] = None,
+):
     """Main entry point for the digest workflow.
 
     Workflow:
@@ -55,6 +62,45 @@ def main():
     # 4. Filter for tomorrow
     tomorrow_events = filter_events_for_tomorrow(events)
     logger.info(f"Found {len(tomorrow_events)} events for tomorrow")
+    if not tomorrow_events:
+        logger.info("No events for tomorrow, skipping email")
+        storage.close()
+        return
+
+    # 5. Send user-targeted digests when users are available
+    target_users = []
+    if user_email:
+        try:
+            user = storage.get_user_by_email(user_email)
+        except ValueError:
+            logger.error(f"Invalid --user-email value: {user_email}")
+            storage.close()
+            return
+        if user:
+            target_users = [user]
+        else:
+            logger.warning(f"Requested user not found: {user_email}")
+            storage.close()
+            return
+    else:
+        target_users = storage.get_active_users()
+
+    if target_users:
+        logger.info(f"Sending digest to {len(target_users)} user(s)")
+        for user in target_users:
+            sent = fire_digest_for_user(
+                user=user,
+                events=tomorrow_events,
+                max_email_events=MAX_EMAIL_EVENTS,
+            )
+            if sent:
+                logger.info(f"Email sent successfully to {user.email}")
+            else:
+                logger.warning(f"No email sent for user {user.email}")
+        storage.close()
+        return
+
+    # 6. Fallback single recipient flow when no onboarded users are present
     selection = rank_events_for_family(tomorrow_events, limit=MAX_EMAIL_EVENTS)
     digest_events = selection.events
     logger.info(
@@ -68,33 +114,33 @@ def main():
     )
     if selection.summary:
         logger.info(f"Personalization summary: {selection.summary}")
+    if not digest_events:
+        logger.info("No ranked events available, skipping fallback email")
+        storage.close()
+        return
 
-    # 5. Build & Send email
-    if digest_events:
-        target_date = digest_events[0].start  # date already constrained to tomorrow
-        html = build_html(
-            digest_events,
-            target_date,
-            personalization_summary=selection.summary,
-            event_feedback=selection.feedback_by_hash,
+    target_date = digest_events[0].start  # date already constrained to tomorrow
+    html = build_html(
+        digest_events,
+        target_date,
+        personalization_summary=selection.summary,
+        event_feedback=selection.feedback_by_hash,
+    )
+
+    recipient = os.environ.get("RECIPIENT_EMAIL")
+    if recipient:
+        logger.info(f"Sending email to {recipient}")
+        sent = send_email(
+            subject=f"Valencia Events - {target_date.strftime('%d %b')}",
+            html_body=html,
+            to_email=recipient,
         )
-
-        recipient = os.environ.get("RECIPIENT_EMAIL")
-        if recipient:
-            logger.info(f"Sending email to {recipient}")
-            sent = send_email(
-                subject=f"Valencia Events - {target_date.strftime('%d %b')}",
-                html_body=html,
-                to_email=recipient,
-            )
-            if sent:
-                logger.info("Email sent successfully")
-            else:
-                logger.error("Failed to send email")
+        if sent:
+            logger.info("Email sent successfully")
         else:
-            logger.warning("No RECIPIENT_EMAIL configured, skipping email")
+            logger.error("Failed to send email")
     else:
-        logger.info("No events for tomorrow, skipping email")
+        logger.warning("No RECIPIENT_EMAIL configured, skipping email")
 
     storage.close()
 

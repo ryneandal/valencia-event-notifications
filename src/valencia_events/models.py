@@ -26,3 +26,20 @@ class Event(BaseModel):
     description: str = Field(default="")
     source: str
     event_hash: str | None = None
+
+
+class User(BaseModel):
+    """Registered user record."""
+
+    id: int
+    email: str = Field(..., min_length=3)
+    preferences: str | None = None
+    is_active: bool = True
+    created_at: datetime
+
+
+class LoginSession(BaseModel):
+    """Session created after a successful login."""
+
+    session_token: str
+    user: User
