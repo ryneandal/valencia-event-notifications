@@ -1,4 +1,5 @@
 import os
+from typing import Annotated
 
 import typer
 from dotenv import load_dotenv
@@ -19,10 +20,10 @@ MAX_EMAIL_EVENTS = 20
 
 
 def main(
-    user_email: str | None = typer.Option(
-        default=None,
-        help="Run digest for a specific registered user email",
-    ),
+    user_email: Annotated[
+        str | None,
+        typer.Option(help="Run digest for a specific registered user email"),
+    ] = None,
 ):
     """Main entry point for the digest workflow.
 
@@ -79,6 +80,8 @@ def main(
             target_users = [user]
         else:
             logger.warning(f"Requested user not found: {user_email}")
+            storage.close()
+            return
     else:
         target_users = storage.get_active_users()
 
