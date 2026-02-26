@@ -1,0 +1,13 @@
+cloudflare_api_token = "<redacted>"
+account_id           = "<cloudflare-account-id>"
+zone_id              = "<cloudflare-zone-id>"
+
+pages_project_name      = "valencia-events-dashboard"
+pages_production_branch = "main"
+pages_custom_domain     = "dashboard.example.com"
+
+worker_service_name  = "valencia-events-api"
+worker_route_pattern = "example.com/api/*"
+worker_custom_domain = "api.example.com"
+
+session_ttl_hours = 24

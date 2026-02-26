@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Valencia Events Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Valencia Events Dashboard</h1>
+      <p class="muted">Register/login and manage your event preferences.</p>
+
+      <section class="card">
+        <h2>Register</h2>
+        <form id="register-form">
+          <label>Email</label>
+          <input id="register-email" name="email" type="email" required />
+          <label>Preferences Blob</label>
+          <textarea id="register-preferences" name="preferences_blob" rows="4"></textarea>
+          <button type="submit">Register</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Login</h2>
+        <form id="login-form">
+          <label>Email</label>
+          <input id="login-email" name="email" type="email" required />
+          <button type="submit">Login</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Session</h2>
+        <div class="actions">
+          <button id="me-button" type="button">Refresh Profile</button>
+          <button id="logout-button" type="button">Logout</button>
+        </div>
+        <pre id="profile-output">No profile loaded.</pre>
+      </section>
+
+      <section class="card">
+        <h2>Update Preferences</h2>
+        <form id="preferences-form">
+          <label>Preferences Blob</label>
+          <textarea id="preferences-blob" name="preferences_blob" rows="6"></textarea>
+          <button type="submit">Save Preferences</button>
+        </form>
+      </section>
+
+      <p id="status" class="status">Ready.</p>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
