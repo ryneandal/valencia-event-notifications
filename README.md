@@ -140,6 +140,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Testing guidelines
 - Code style requirements
 
+## Cloudflare Frontend + Worker
+
+A Cloudflare-compatible user dashboard implementation is available under [`cloudflare/`](cloudflare/):
+
+- `cloudflare/pages/public/`: Static Pages frontend (register/login/preferences UI).
+- `cloudflare/worker/src/`: Worker API (`/api/register`, `/api/login`, `/api/me`, `/api/preferences`, `/api/logout`) with D1-compatible schema.
+- `cloudflare/tests/`: Integration tests for Worker API and frontend interactions.
+
+Run Cloudflare tests:
+
+```bash
+cd cloudflare
+pnpm install
+pnpm test
+```
+
 ## Project Structure
 
 ```
