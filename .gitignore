@@ -223,3 +223,8 @@ thumbs.db
 
 # sqlite
 *.db
+# Node / pnpm artifacts
+node_modules/
+cloudflare/node_modules/
+cloudflare/.vite/
+cloudflare/.pnpm-store/
