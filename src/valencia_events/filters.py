@@ -11,10 +11,10 @@ def filter_events_for_tomorrow(events: list[Event]) -> list[Event]:
     """Filter events to only those happening tomorrow.
 
     Args:
-        events: List of all events
+        events: All candidate events.
 
     Returns:
-        List of events scheduled for tomorrow
+        Events scheduled for tomorrow in Europe/Madrid local time.
     """
     # Use local time for tomorrow logic
     tz = pytz.timezone("Europe/Madrid")
@@ -25,7 +25,15 @@ def filter_events_for_tomorrow(events: list[Event]) -> list[Event]:
 
 
 def rank_and_limit_events(events: list[Event], limit: int = 20) -> list[Event]:
-    """Apply deterministic ranking and cap the number of events."""
+    """Apply deterministic ranking and cap the number of events.
+
+    Args:
+        events: Events to rank.
+        limit: Maximum number of events to return.
+
+    Returns:
+        Events sorted by start time, source, and title, truncated to ``limit``.
+    """
     ranked = sorted(
         events,
         key=lambda event: (

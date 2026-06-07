@@ -12,12 +12,12 @@ class Event(BaseModel):
     """Normalized event model with validated fields.
 
     Attributes:
-        title: Event title/name
-        start: Event start date/time (timezone-aware, Europe/Madrid)
-        url: URL to event details page
-        description: Event description text
-        source: Source identifier
-        event_hash: Unique hash for deduplication
+        title: Event title or name.
+        start: Event start date/time in Europe/Madrid.
+        url: URL to the event details page.
+        description: Event description text.
+        source: Source identifier.
+        event_hash: Unique hash for deduplication.
     """
 
     title: str = Field(..., min_length=1)
@@ -29,7 +29,15 @@ class Event(BaseModel):
 
 
 class User(BaseModel):
-    """Registered user record."""
+    """Registered user record.
+
+    Attributes:
+        id: Primary key.
+        email: Normalized email address.
+        preferences: Serialized preference blob.
+        is_active: Whether the subscription is active.
+        created_at: Account creation timestamp.
+    """
 
     id: int
     email: str = Field(..., min_length=3)
@@ -39,7 +47,12 @@ class User(BaseModel):
 
 
 class LoginSession(BaseModel):
-    """Session created after a successful login."""
+    """Session created after a successful login.
+
+    Attributes:
+        session_token: Plaintext bearer token.
+        user: Authenticated user.
+    """
 
     session_token: str
     user: User

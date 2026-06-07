@@ -25,15 +25,13 @@ def main(
         typer.Option(help="Run digest for a specific registered user email"),
     ] = None,
 ):
-    """Main entry point for the digest workflow.
+    """Run the full digest workflow.
 
-    Workflow:
-    1. Run scrapers to collect raw events
-    2. Normalize raw events into Event models
-    3. Compute hashes and store in database (deduplicate)
-    4. Filter for tomorrow's events
-    5. Build HTML email
-    6. Send email
+    Args:
+        user_email: Optional registered user email to target a single recipient.
+
+    Returns:
+        None
     """
     load_dotenv()
     configure_logging()

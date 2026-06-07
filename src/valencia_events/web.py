@@ -14,19 +14,23 @@ from .storage import EventStorage
 
 
 class RegisterRequest(BaseModel):
+    """Request payload for user registration."""
     email: str = Field(..., min_length=3)
     preferences_blob: str | None = None
 
 
 class LoginRequest(BaseModel):
+    """Request payload for user login."""
     email: str = Field(..., min_length=3)
 
 
 class PreferencesRequest(BaseModel):
+    """Request payload for updating stored preferences."""
     preferences_blob: str | None = None
 
 
 class UserResponse(BaseModel):
+    """Response model for a user record."""
     id: int
     email: str
     preferences: str | None
@@ -34,6 +38,7 @@ class UserResponse(BaseModel):
 
     @classmethod
     def from_user(cls, user: User) -> UserResponse:
+        """Convert a ``User`` model into an API response."""
         return cls(
             id=user.id,
             email=user.email,
@@ -43,11 +48,13 @@ class UserResponse(BaseModel):
 
 
 class SessionResponse(BaseModel):
+    """Response model for a login session."""
     session_token: str
     user: UserResponse
 
     @classmethod
     def from_session(cls, session: LoginSession) -> SessionResponse:
+        """Convert a ``LoginSession`` into an API response."""
         return cls(
             session_token=session.session_token,
             user=UserResponse.from_user(session.user),
@@ -55,14 +62,35 @@ class SessionResponse(BaseModel):
 
 
 def create_app(storage: EventStorage | None = None) -> FastAPI:
+    """Create the FastAPI application.
+
+    Args:
+        storage: Optional storage backend to reuse in tests or dependency
+            injection.
+
+    Returns:
+        Configured FastAPI application.
+    """
     app = FastAPI(title="Valencia Events Onboarding API")
     app.state.storage = storage or EventStorage()
     app.state.onboarding = OnboardingService(app.state.storage)
 
     def get_onboarding_service() -> OnboardingService:
+        """Return the configured onboarding service."""
         return app.state.onboarding
 
     def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
+        """Extract a bearer token from the Authorization header.
+
+        Args:
+            authorization: Raw ``Authorization`` header value.
+
+        Returns:
+            Plaintext bearer token.
+
+        Raises:
+            HTTPException: If the header is missing or malformed.
+        """
         if not authorization:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,6 +119,7 @@ def create_app(storage: EventStorage | None = None) -> FastAPI:
         payload: RegisterRequest,
         onboarding: OnboardingService = Depends(get_onboarding_service),
     ) -> SessionResponse:
+        """Register a new user and return a session response."""
         try:
             session = onboarding.register(
                 email=payload.email,
@@ -108,6 +137,7 @@ def create_app(storage: EventStorage | None = None) -> FastAPI:
         payload: LoginRequest,
         onboarding: OnboardingService = Depends(get_onboarding_service),
     ) -> SessionResponse:
+        """Login an existing user and return a session response."""
         try:
             session = onboarding.login(email=payload.email)
         except ValueError as exc:
@@ -122,6 +152,7 @@ def create_app(storage: EventStorage | None = None) -> FastAPI:
         session_token: str = Depends(get_bearer_token),
         onboarding: OnboardingService = Depends(get_onboarding_service),
     ) -> UserResponse:
+        """Return the authenticated user's profile."""
         try:
             user = onboarding.get_current_user(session_token=session_token)
         except ValueError as exc:
@@ -137,6 +168,7 @@ def create_app(storage: EventStorage | None = None) -> FastAPI:
         session_token: str = Depends(get_bearer_token),
         onboarding: OnboardingService = Depends(get_onboarding_service),
     ) -> UserResponse:
+        """Update the authenticated user's preferences."""
         try:
             user = onboarding.save_preferences(
                 session_token=session_token,

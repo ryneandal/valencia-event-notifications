@@ -7,7 +7,7 @@ def configure_logging(level: int = logging.INFO) -> None:
     """Configure logging for the application.
 
     Args:
-        level: Logging level (default: logging.INFO)
+        level: Root logging level to apply.
     """
     logging.basicConfig(
         level=level,
@@ -20,9 +20,9 @@ def get_logger(name: str) -> logging.Logger:
     """Get a logger instance with the specified name.
 
     Args:
-        name: Name of the logger (usually __name__)
+        name: Logger name, typically ``__name__``.
 
     Returns:
-        Configured logger instance
+        Logger configured through the standard logging hierarchy.
     """
     return logging.getLogger(name)
