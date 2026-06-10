@@ -9,18 +9,34 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from valencia_events.normalize import VALENCIA_TZ
+
 from .models import Event, User
 
 
 # Register adapters and converters for datetime to avoid
 # Python 3.12 deprecation warnings.
 def adapt_datetime(dt: datetime) -> str:
-    """Adapt datetime to ISO 8601 string."""
+    """Adapt a ``datetime`` to an ISO 8601 string.
+
+    Args:
+        dt: Datetime value to serialize.
+
+    Returns:
+        ISO 8601 string representation.
+    """
     return dt.isoformat(sep=" ")
 
 
 def convert_timestamp(val: bytes) -> datetime:
-    """Convert valid ISO 8601 byte string to datetime."""
+    """Convert a SQLite timestamp value to ``datetime``.
+
+    Args:
+        val: Raw SQLite column value.
+
+    Returns:
+        Parsed datetime value.
+    """
     return datetime.fromisoformat(val.decode())
 
 
@@ -36,22 +52,26 @@ class EventStorage:
     """
 
     def __init__(self, db_path: str = "events.db"):
-        """Initialize storage with database path.
+        """Initialize storage with a database path.
 
         Args:
-            db_path: Path to SQLite database file
+            db_path: Path to the SQLite database file.
         """
         self.db_path = Path(db_path)
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get database connection."""
+        """Get a SQLite connection for the configured database.
+
+        Returns:
+            Open SQLite connection with timestamp conversion enabled.
+        """
         return sqlite3.connect(
             self.db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
 
     def _init_db(self):
-        """Create database and tables if they don't exist."""
+        """Create the database tables if they do not exist."""
         with self._get_connection() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS events (
@@ -102,6 +122,17 @@ class EventStorage:
 
     @staticmethod
     def _normalize_email(email: str) -> str:
+        """Normalize and validate an email address.
+
+        Args:
+            email: Raw email address.
+
+        Returns:
+            Lowercased, stripped email address.
+
+        Raises:
+            ValueError: If the email is invalid.
+        """
         normalized = email.strip().lower()
         if not normalized or "@" not in normalized:
             raise ValueError("Invalid email address")
@@ -109,10 +140,26 @@ class EventStorage:
 
     @staticmethod
     def _token_hash(token: str) -> str:
+        """Return a stable SHA-256 hash for a session token.
+
+        Args:
+            token: Plaintext session token.
+
+        Returns:
+            Hex-encoded SHA-256 digest.
+        """
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _row_to_user(row: tuple) -> User:
+        """Convert a SQLite row into a ``User`` model.
+
+        Args:
+            row: Database row from a users query.
+
+        Returns:
+            Parsed user model.
+        """
         user_id, email, preferences, is_active, created_at = row
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at)
@@ -131,7 +178,20 @@ class EventStorage:
         *,
         is_active: bool = True,
     ) -> User:
-        """Create a new user account."""
+        """Create a new user account.
+
+        Args:
+            email: User email address.
+            preferences: Optional serialized preference blob.
+            is_active: Initial active state.
+
+        Returns:
+            The created user record.
+
+        Raises:
+            ValueError: If the email is invalid or already exists.
+            RuntimeError: If the user cannot be reloaded after insert.
+        """
         normalized_email = self._normalize_email(email)
         try:
             with self._get_connection() as conn:
@@ -151,7 +211,14 @@ class EventStorage:
         return user
 
     def get_user_by_email(self, email: str) -> User | None:
-        """Retrieve user by email address."""
+        """Retrieve a user by email address.
+
+        Args:
+            email: Email address to look up.
+
+        Returns:
+            Matching user, or ``None`` if not found.
+        """
         normalized_email = self._normalize_email(email)
         with self._get_connection() as conn:
             row = conn.execute(
@@ -167,7 +234,14 @@ class EventStorage:
         return self._row_to_user(row)
 
     def get_user_by_id(self, user_id: int) -> User | None:
-        """Retrieve user by ID."""
+        """Retrieve a user by ID.
+
+        Args:
+            user_id: Numeric user identifier.
+
+        Returns:
+            Matching user, or ``None`` if not found.
+        """
         with self._get_connection() as conn:
             row = conn.execute(
                 """
@@ -182,7 +256,11 @@ class EventStorage:
         return self._row_to_user(row)
 
     def get_active_users(self) -> list[User]:
-        """Retrieve all users with active subscriptions."""
+        """Retrieve all users with active subscriptions.
+
+        Returns:
+            Active users ordered by ID.
+        """
         users: list[User] = []
         with self._get_connection() as conn:
             rows = conn.execute(
@@ -198,7 +276,19 @@ class EventStorage:
         return users
 
     def update_user_preferences(self, user_id: int, preferences: str | None) -> User:
-        """Update persisted preference blob for a user."""
+        """Update the persisted preference blob for a user.
+
+        Args:
+            user_id: Numeric user identifier.
+            preferences: Serialized preference blob.
+
+        Returns:
+            Updated user record.
+
+        Raises:
+            ValueError: If the user does not exist.
+            RuntimeError: If the updated user cannot be reloaded.
+        """
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
@@ -217,7 +307,15 @@ class EventStorage:
         return updated
 
     def create_user_session(self, user_id: int, *, ttl_hours: int = 24) -> str:
-        """Create a login session and return plaintext bearer token."""
+        """Create a login session and return a plaintext bearer token.
+
+        Args:
+            user_id: Numeric user identifier.
+            ttl_hours: Session lifetime in hours.
+
+        Returns:
+            Plaintext bearer token for the new session.
+        """
         token = secrets.token_urlsafe(32)
         token_hash = self._token_hash(token)
         expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
@@ -233,7 +331,14 @@ class EventStorage:
         return token
 
     def get_user_by_session_token(self, session_token: str) -> User | None:
-        """Resolve bearer token to current user."""
+        """Resolve a bearer token to the current user.
+
+        Args:
+            session_token: Plaintext bearer token.
+
+        Returns:
+            Matching active user, or ``None`` if invalid or expired.
+        """
         token_hash = self._token_hash(session_token)
         with self._get_connection() as conn:
             row = conn.execute(
@@ -272,7 +377,14 @@ class EventStorage:
         return user
 
     def revoke_user_session(self, session_token: str) -> bool:
-        """Invalidate an existing session token."""
+        """Invalidate an existing session token.
+
+        Args:
+            session_token: Plaintext bearer token.
+
+        Returns:
+            ``True`` if a session row was deleted.
+        """
         token_hash = self._token_hash(session_token)
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -331,33 +443,23 @@ class EventStorage:
         Returns:
             List of events scheduled for the given date
         """
-        target_date_str = date.strftime("%Y-%m-%d")
-        events = []
+
+        target_date_start = VALENCIA_TZ.localize(
+            datetime(date.year, date.month, date.day)
+        )
+        target_date_end = target_date_start + timedelta(days=1)
+        events: list[Event] = []
 
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT title, start, url, description, source, event_hash
-                FROM events
-                WHERE date(start) = ?
-                """,
-                (target_date_str,),
+                SELECT title, start, url, description, source, event_hash FROM events
+                 WHERE start >= ? AND start < ?
+                 """,
+                (target_date_start, target_date_end),
             )
-
             for row in cursor:
-                # sqlite3 with detect_types returns datetime objects for TIMESTAMP
-                # columns but depending on storage it might be naive.
-                # Pydantic expects zone info if defined, so we reconstruct.
                 title, start, url, description, source, event_hash = row
-
-                # Check if start is string (if detect_types failed) or datetime
-                if isinstance(start, str):
-                    # Should be ISO format
-                    try:
-                        start = datetime.fromisoformat(start)
-                    except ValueError:
-                        pass  # Let validation fail if strictly required or handle basic
-
                 events.append(
                     Event(
                         title=title,
@@ -371,22 +473,26 @@ class EventStorage:
         return events
 
     def close(self):
-        """Close database connection."""
+        """Close the storage backend.
+
+        This implementation uses short-lived SQLite connections, so no action
+        is required.
+        """
         # Connections are context managed in methods, nothing to close
         # unless we kept a persistent self.conn
         pass
 
 
 def compute_event_hash(event: Event) -> str:
-    """Compute unique hash for event deduplication.
+    """Compute a unique hash for event deduplication.
 
-    Uses title, start datetime, and URL to create a hash.
+    Uses the title, start datetime, and URL to create the hash.
 
     Args:
         event: Event to hash
 
-    Returns:
-        SHA256 hash string
+        Returns:
+            SHA-256 hash string.
     """
     # Normalize inputs for consistent hashing
     data = f"{event.title}|{event.start.isoformat()}|{event.url}"

@@ -66,9 +66,9 @@ def normalize_raw(raw_item: dict[str, Any]) -> Event:
     start_dt = parse_datetime(str(raw_item["start"]))
 
     # Clean description if it's a filename (common for Visit Valencia)
-    description = raw_item.get("description", "")
-    if description.lower().endswith((".jpg", ".png", ".jpeg")):
-        description = ""
+    description = str(raw_item.get("description", "")).strip()
+    is_image = description.lower().endswith((".jpg", ".png", ".jpeg"))
+    description = "" if is_image else description
 
     return Event(
         title=str(raw_item.get("title", "")).strip(),

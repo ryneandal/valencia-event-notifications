@@ -20,15 +20,16 @@ This project automatically scrapes event information from various sources in Val
 **Current Stage**: Active Development 🚀
 
 The project core is implemented and running:
-- ✅ Scrapy spiders for gathering events (Visit Valencia)
+
+- ✅ Scrapy spiders for 8 sources (Visit Valencia, Ajuntament agenda, Palau de la Música, Les Arts, IVAM, València Secreta, Valencia Bonita, generic RSS)
 - ✅ Date parsing and normalization
 - ✅ SQLite storage with deduplication
+- ✅ LLM-based event ranking per user (Gemini or Mistral via LangChain)
 - ✅ Email generation (Jinja2 templates) and sending (SMTP)
 - ✅ Periodic execution via GitHub Actions
+- 🚧 User onboarding: FastAPI API and Cloudflare Pages/Worker dashboard exist in parallel; hosting/DB consolidation and verified authentication are still open (see [specs/user_management.md](specs/user_management.md))
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
-
-
 
 ## Architecture
 
@@ -71,54 +72,63 @@ The project uses SQLite (`events.db`) with the following schema:
   - `relevance_score`: LLM-assigned relevance.
   - `relevance_reason`: LLM explanation.
   - `is_sent`: Tracks if the event has been emailed to the user.
+  - *Note: the schema exists but the digest pipeline does not yet write to this table.*
 
 ## Quick Start
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/ryneandal/valencia-event-notifications.git
    cd valencia-event-notifications
    ```
 
 2. **Install `uv`** (if not already installed):
+
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
+
    See [uv documentation](https://docs.astral.sh/uv/) for more details.
 
 3. **Install dependencies**:
+
    ```bash
    uv sync --extra dev
    ```
 
 4. **Run tests**:
+
    ```bash
    uv run pytest
    ```
 
 5. **Run linters**:
+
    ```bash
-   uv run black .
-   uv run isort .
+   uv run ruff format --check .
    uv run ruff check .
    ```
 
 6. **Run the Digest**:
-   The workflow is managed via a CLI app:
+
+   The workflow is exposed as a single CLI entry point:
+
    ```bash
    uv run valencia-events --help
    ```
 
-   Common commands:
+   Common usage:
+
    ```bash
-   # Run the full workflow (scrape -> normalize -> send)
+   # Run the full workflow (scrape -> normalize -> store -> email)
    uv run valencia-events
-   
-   # Only scrape events
-   uv run valencia-events scrape
-   
-   # Send test email
-   uv run valencia-events send-test-email --to your@email.com
+
+   # Target a single registered user
+   uv run valencia-events --user-email your@email.com
+
+   # Show command help
+   uv run valencia-events --help
    ```
 
 ## Configuration
@@ -128,13 +138,18 @@ The following environment variables are required for the full workflow:
 - `SMTP_USER`: Email account for sending (e.g., Gmail)
 - `SMTP_APP_PASSWORD`: App-specific password for SMTP
 - `RECIPIENT_EMAIL`: Email address to receive digests
-- `EVENTBRITE_TOKEN`: (Optional) API token for Eventbrite events
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Enable Gemini-based event ranking
+- `MISTRAL_API_KEY`: Enable Mistral-based event ranking
+- `LLM_BACKEND`: Optional override (`gemini` or `mistral`)
+- `FAMILY_PROFILE_JSON`: Optional JSON profile for ranking personalization
+- `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `MISTRAL_MODEL`, `MISTRAL_FALLBACK_MODEL`: Optional model overrides
 
 For GitHub Actions, these should be set as repository secrets.
 
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
 - How to write good issues
 - Development setup
 - Testing guidelines
@@ -145,8 +160,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 A Cloudflare-compatible user dashboard implementation is available under [`cloudflare/`](cloudflare/):
 
 - `cloudflare/pages/public/`: Static Pages frontend (register/login/preferences UI).
-- `cloudflare/worker/src/`: Worker API (`/api/register`, `/api/login`, `/api/me`, `/api/preferences`, `/api/logout`) with D1-compatible schema.
-- `cloudflare/tests/`: Integration tests for Worker API and frontend interactions.
+- `cloudflare/worker/src/`: Python Worker API (`/api/register`, `/api/login`, `/api/me`, `/api/preferences`, `/api/logout`) with D1-compatible schema.
+- `cloudflare/tests/`: Frontend interaction tests for the static dashboard.
+- `tests/test_cloudflare_worker.py`: Pytest coverage for the Worker API behavior.
 
 Run Cloudflare tests:
 
@@ -158,7 +174,7 @@ pnpm test
 
 ## Project Structure
 
-```
+```plaintext
 valencia-event-notifications/
 ├── src/
 │   ├── valencia_events/      # Main application package
@@ -172,12 +188,12 @@ valencia-event-notifications/
 │   │   ├── logger.py         # Logging config
 │   │   └── templates/        # Email templates
 │   └── scrapers/             # Scrapy project package
-│       ├── valencia_events/
-│       │   ├── spiders/
-│       │   ├── items.py
-│       │   ├── pipelines.py
-│       │   └── settings.py
-│       └── scrapy.cfg
+│       └── valencia_events/
+│           ├── spiders/
+│           ├── items.py
+│           ├── pipelines.py
+│           └── settings.py
+├── scrapy.cfg                # Scrapy configuration
 ├── targets/                  # Local artifacts (HTML/JSON dumps)
 ├── tests/                    # Test suite
 ├── .github/workflows/        # GitHub Actions

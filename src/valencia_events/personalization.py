@@ -16,6 +16,10 @@ from .models import Event
 
 logger = get_logger(__name__)
 
+DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
+DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-2.5-pro"
+DEFAULT_MISTRAL_MODEL = "mistral-medium-2508"
+
 DEFAULT_FAMILY_PROFILE: dict[str, Any] = {
     "audience": "family_with_school_age_kids",
     "location_scope": [
@@ -170,13 +174,23 @@ class GeminiEventRanker:
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             return None
-        model = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
-        fallback_model = os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-2.5-pro")
+        model = os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        fallback_model = os.environ.get(
+            "GEMINI_FALLBACK_MODEL",
+            DEFAULT_GEMINI_FALLBACK_MODEL,
+        )
         return cls(
             api_key=api_key,
             model=model,
             fallback_model=fallback_model,
         )
+
+    def _check_dependencies(self) -> None:
+        try:
+            import langchain_google_genai  # noqa: F401
+            from langchain_core.prompts import ChatPromptTemplate  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("LangChain Gemini dependencies are missing") from exc
 
     def _invoke_model(
         self,
@@ -234,11 +248,7 @@ class GeminiEventRanker:
         family_profile: dict[str, Any],
         limit: int,
     ) -> PersonalizedSelection:
-        try:
-            import langchain_google_genai  # noqa: F401
-            from langchain_core.prompts import ChatPromptTemplate  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError("LangChain Gemini dependencies are missing") from exc
+        self._check_dependencies()
 
         event_payload: list[dict[str, str]] = []
         for event in events:
@@ -327,6 +337,80 @@ class GeminiEventRanker:
         )
 
 
+class MistralEventRanker(GeminiEventRanker):
+    """Rank events with Mistral via LangChain structured output."""
+
+    @classmethod
+    def from_env(cls) -> MistralEventRanker | None:
+        api_key = os.environ.get("MISTRAL_API_KEY")
+        if not api_key:
+            return None
+        model = os.environ.get("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL)
+        fallback_model = os.environ.get("MISTRAL_FALLBACK_MODEL", "")
+        return cls(
+            api_key=api_key,
+            model=model,
+            fallback_model=fallback_model,
+        )
+
+    def _check_dependencies(self) -> None:
+        try:
+            from langchain_core.prompts import ChatPromptTemplate  # noqa: F401
+            from langchain_mistralai import ChatMistralAI  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("LangChain Mistral dependencies are missing") from exc
+
+    def _invoke_model(
+        self,
+        *,
+        model: str,
+        family_profile: dict[str, Any],
+        event_payload: list[dict[str, str]],
+        limit: int,
+    ) -> GeminiRankingResponse:
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_mistralai import ChatMistralAI
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    (
+                        "You are a family event curator for Valencia. "
+                        "Use the provided family profile to rank events. "
+                        "Return a concise summary and ordered event hashes."
+                    ),
+                ),
+                (
+                    "human",
+                    (
+                        "Family profile JSON:\n{family_profile_json}\n\n"
+                        "Candidate events JSON:\n{events_json}\n\n"
+                        "Select up to {limit} events and return ranked output. "
+                        "Include selected_events with event_hash and reason. "
+                        "Reasons should be short and family-focused."
+                    ),
+                ),
+            ]
+        )
+
+        llm = ChatMistralAI(
+            model=model,
+            api_key=self.api_key,
+            temperature=0,
+        )
+        chain = prompt | llm.with_structured_output(GeminiRankingResponse)
+        return chain.invoke(
+            {
+                "family_profile_json": json.dumps(
+                    family_profile, ensure_ascii=False, indent=2
+                ),
+                "events_json": json.dumps(event_payload, ensure_ascii=False, indent=2),
+                "limit": str(limit),
+            }
+        )
+
+
 def load_family_profile() -> dict[str, Any]:
     """Load family profile from env override or default profile."""
     raw = os.environ.get("FAMILY_PROFILE_JSON")
@@ -365,10 +449,10 @@ def rank_events_for_family(
     events: list[Event],
     *,
     limit: int = 20,
-    ranker: GeminiEventRanker | None = None,
+    ranker: GeminiEventRanker | MistralEventRanker | None = None,
     family_profile: dict[str, Any] | None = None,
 ) -> PersonalizedSelection:
-    """Rank events using Gemini when configured; fall back deterministically."""
+    """Rank events using a configured LLM; fall back deterministically."""
     if not events:
         return PersonalizedSelection(
             events=[],
@@ -378,7 +462,7 @@ def rank_events_for_family(
         )
 
     family_profile = family_profile or load_family_profile()
-    ranker = ranker or GeminiEventRanker.from_env()
+    ranker = ranker or _ranker_from_env()
 
     if not ranker:
         return PersonalizedSelection(
@@ -398,3 +482,17 @@ def rank_events_for_family(
             feedback_by_hash={},
             used_llm=False,
         )
+
+
+def _ranker_from_env() -> GeminiEventRanker | MistralEventRanker | None:
+    """Build the configured LLM ranker from environment variables."""
+    backend = os.environ.get("LLM_BACKEND", "").strip().lower()
+    if backend == "mistral":
+        return MistralEventRanker.from_env()
+    if backend == "gemini":
+        return GeminiEventRanker.from_env()
+    if backend:
+        logger.warning(f"Unsupported LLM_BACKEND={backend}; using default ranking")
+        return None
+
+    return MistralEventRanker.from_env() or GeminiEventRanker.from_env()

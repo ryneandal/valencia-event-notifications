@@ -12,7 +12,10 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from .logger import get_logger
 from .models import Event
+
+logger = get_logger(__name__)
 
 
 def build_html(
@@ -21,16 +24,16 @@ def build_html(
     personalization_summary: str | None = None,
     event_feedback: dict[str, str] | None = None,
 ) -> str:
-    """Build HTML email body from list of events.
+    """Build an HTML email body from a list of events.
 
     Args:
-        events: List of events to include in digest
-        date: Date for the digest (e.g., tomorrow's date)
-        personalization_summary: Optional top-level explanation from LLM ranking
-        event_feedback: Optional per-event rationale keyed by event_hash
+        events: Events to render into the digest.
+        date: Digest date, typically tomorrow.
+        personalization_summary: Optional top-level explanation from ranking.
+        event_feedback: Optional per-event rationale keyed by ``event_hash``.
 
     Returns:
-        HTML string for email body
+        Rendered HTML email body.
     """
     date_str = date.strftime("%A, %d %B %Y")
 
@@ -56,27 +59,27 @@ def send_email(
     smtp_host: str = "smtp.gmail.com",
     smtp_port: int = 587,
 ) -> bool:
-    """Send HTML email via SMTP.
+    """Send an HTML email via SMTP.
 
     Credentials should be provided via environment variables:
     - SMTP_USER
     - SMTP_APP_PASSWORD
 
     Args:
-        subject: Email subject line
-        html_body: HTML email body
-        to_email: Recipient email address
-        from_email: Sender email address (defaults to SMTP_USER)
-        smtp_user: SMTP username (defaults to env var SMTP_USER)
-        smtp_password: SMTP password (defaults to env var SMTP_APP_PASSWORD)
-        smtp_host: SMTP server hostname
-        smtp_port: SMTP server port
+        subject: Email subject line.
+        html_body: HTML email body.
+        to_email: Recipient email address.
+        from_email: Sender email address, defaults to ``smtp_user``.
+        smtp_user: SMTP username, defaults to ``SMTP_USER``.
+        smtp_password: SMTP password, defaults to ``SMTP_APP_PASSWORD``.
+        smtp_host: SMTP server hostname.
+        smtp_port: SMTP server port.
 
     Returns:
-        True if email was sent successfully
+        ``True`` if the email was sent successfully.
 
     Raises:
-        ValueError: If required credentials are missing
+        ValueError: If required credentials are missing.
     """
     smtp_user = smtp_user or os.environ.get("SMTP_USER")
     smtp_password = smtp_password or os.environ.get("SMTP_APP_PASSWORD")
@@ -102,8 +105,8 @@ def send_email(
             server.send_message(msg)
         return True
     except smtplib.SMTPException as e:
-        print(f"SMTP Error: {e}")
+        logger.error(f"SMTP Error: {e}")
         return False
     except Exception as e:
-        print(f"General Email Error: {e}")
+        logger.error(f"General Email Error: {e}")
         raise
