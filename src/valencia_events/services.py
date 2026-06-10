@@ -32,6 +32,15 @@ SCRAPER_RUNS: list[dict[str, Any]] = [
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Load JSONL records from a file.
+
+    Args:
+        path: Path to a JSONL file.
+
+    Returns:
+        Parsed JSON objects, skipping blank and invalid lines.
+    """
+
     raw_items: list[dict[str, Any]] = []
     if not path.exists():
         return raw_items
@@ -54,6 +63,13 @@ def _run_single_spider(
     args: dict[str, str],
     output_file: Path,
 ) -> None:
+    """Run a single Scrapy spider and write its output to disk.
+
+    Args:
+        spider_name: Scrapy spider name.
+        args: Spider arguments passed via ``-a``.
+        output_file: JSONL file written by Scrapy feed export.
+    """
     cmd = ["scrapy", "crawl", spider_name, "-O", str(output_file)]
     for key, value in args.items():
         cmd.extend(["-a", f"{key}={value}"])
@@ -68,7 +84,11 @@ def _run_single_spider(
 
 
 def run_scrapers() -> list[dict]:
-    """Run all configured scrapers and collect raw events."""
+    """Run all configured scrapers and collect raw events.
+
+    Returns:
+        Raw event dictionaries that passed source filtering.
+    """
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
 

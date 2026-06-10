@@ -3,6 +3,10 @@
 Processes scraped items before they are persisted.
 """
 
+from scrapy.exceptions import DropItem
+
+REQUIRED_FIELDS = ("title", "start", "url", "source")
+
 
 class ValenciaEventsPipeline:
     """Pipeline for processing scraped event items.
@@ -14,30 +18,42 @@ class ValenciaEventsPipeline:
     """
 
     def open_spider(self, spider):
-        """Called when spider is opened.
+        """Handle spider startup.
 
         Args:
-            spider: The spider instance
+            spider: The spider instance.
         """
         pass
 
     def close_spider(self, spider):
-        """Called when spider is closed.
+        """Handle spider shutdown.
 
         Args:
-            spider: The spider instance
+            spider: The spider instance.
         """
         pass
 
     def process_item(self, item, spider):
-        """Process a scraped item.
+        """Validate and normalize a scraped item.
 
         Args:
-            item: The scraped item
-            spider: The spider instance
+            item: The scraped item.
+            spider: The spider instance.
 
         Returns:
-            The processed item
+            The validated and normalized item.
+
+        Raises:
+            DropItem: If a required field is missing or blank.
         """
-        # TODO: Implement item validation and processing
+        for field in REQUIRED_FIELDS:
+            value = item.get(field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                raise DropItem(f"Missing required field {field!r}")
+
+        for field in item.fields:
+            value = item.get(field)
+            if isinstance(value, str):
+                item[field] = " ".join(value.split())
+
         return item

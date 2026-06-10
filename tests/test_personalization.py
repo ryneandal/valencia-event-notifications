@@ -1,4 +1,4 @@
-"""Tests for Gemini personalization layer."""
+"""Tests for LLM personalization layer."""
 
 import json
 from datetime import datetime
@@ -7,8 +7,11 @@ import pytz
 
 from valencia_events.models import Event
 from valencia_events.personalization import (
+    DEFAULT_MISTRAL_MODEL,
     GeminiEventRanker,
+    MistralEventRanker,
     PersonalizedSelection,
+    _ranker_from_env,
     load_family_profile,
     rank_events_for_family,
 )
@@ -52,6 +55,8 @@ def test_load_family_profile_from_env(monkeypatch):
 def test_rank_events_for_family_fallback_without_api_key(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BACKEND", raising=False)
     events = [_event("B", "b", 11), _event("A", "a", 10)]
 
     selection = rank_events_for_family(events, limit=1)
@@ -99,3 +104,37 @@ def test_gemini_ranker_falls_back_to_secondary_model(monkeypatch):
     assert calls == ["gemini-3-flash-preview", "gemini-2.5-pro"]
     assert selection.used_llm is True
     assert [event.title for event in selection.events] == ["B", "A"]
+
+
+def test_mistral_ranker_from_env_uses_default_model(monkeypatch):
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    monkeypatch.delenv("MISTRAL_MODEL", raising=False)
+    monkeypatch.delenv("MISTRAL_FALLBACK_MODEL", raising=False)
+
+    ranker = MistralEventRanker.from_env()
+
+    assert ranker is not None
+    assert ranker.model == DEFAULT_MISTRAL_MODEL
+    assert ranker.fallback_model == ""
+
+
+def test_ranker_from_env_prefers_mistral_when_available(monkeypatch):
+    monkeypatch.delenv("LLM_BACKEND", raising=False)
+    monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+
+    ranker = _ranker_from_env()
+
+    assert isinstance(ranker, MistralEventRanker)
+    assert ranker.model == DEFAULT_MISTRAL_MODEL
+
+
+def test_ranker_from_env_can_select_gemini(monkeypatch):
+    monkeypatch.setenv("LLM_BACKEND", "gemini")
+    monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+
+    ranker = _ranker_from_env()
+
+    assert isinstance(ranker, GeminiEventRanker)
+    assert not isinstance(ranker, MistralEventRanker)

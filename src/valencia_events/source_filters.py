@@ -22,7 +22,14 @@ EDITORIAL_BLOCKLIST = {
 
 
 def should_keep_raw_event(raw_item: dict[str, Any]) -> bool:
-    """Return True when a raw item appears to be a valid event candidate."""
+    """Return ``True`` when a raw item appears to be a valid event candidate.
+
+    Args:
+        raw_item: Raw scraped item to inspect.
+
+    Returns:
+        ``True`` when the item has the minimum fields and passes editorial checks.
+    """
     title = str(raw_item.get("title", "")).strip()
     url = str(raw_item.get("url", "")).strip()
     start = str(raw_item.get("start", "")).strip()

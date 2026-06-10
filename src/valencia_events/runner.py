@@ -22,8 +22,16 @@ def normalize_and_store_events(
     raw_events: list[dict],
     storage: EventStorage,
 ) -> list[Event]:
-    """Normalize raw events, deduplicate in DB, and return valid Event records."""
-    events: list[Event] = []
+    """Normalize raw events and persist only newly inserted events.
+
+    Args:
+        raw_events: Raw scraped event dictionaries.
+        storage: Storage backend used for deduplication and persistence.
+
+    Returns:
+        Normalized events that were inserted into storage.
+    """
+    deduped_events: list[Event] = []
     for raw in raw_events:
         try:
             event = normalize_raw(raw)
@@ -31,14 +39,21 @@ def normalize_and_store_events(
             logger.warning(f"Failed to normalize event: {exc}")
             continue
 
-        events.append(event)
-        storage.store_event(event)
+        if storage.store_event(event):
+            deduped_events.append(event)
 
-    return events
+    return deduped_events
 
 
 def select_tomorrow_events(events: list[Event]) -> list[Event]:
-    """Return only tomorrow events."""
+    """Return only events occurring tomorrow.
+
+    Args:
+        events: Candidate events.
+
+    Returns:
+        Events that fall on tomorrow's local date.
+    """
     return filter_events_for_tomorrow(events)
 
 
@@ -49,7 +64,17 @@ def fire_digest_for_user(
     max_email_events: int = 20,
     ranker: GeminiEventRanker | None = None,
 ) -> bool:
-    """Build and send digest for one specific user."""
+    """Build and send a digest for one specific user.
+
+    Args:
+        user: Target user.
+        events: Candidate events to rank and email.
+        max_email_events: Maximum number of events to include.
+        ranker: Optional custom ranker implementation.
+
+    Returns:
+        True when an email was sent successfully, otherwise False.
+    """
     if not user.is_active:
         logger.info(f"Skipping inactive user: {user.email}")
         return False
