@@ -15,22 +15,26 @@ from .storage import EventStorage
 
 class RegisterRequest(BaseModel):
     """Request payload for user registration."""
+
     email: str = Field(..., min_length=3)
     preferences_blob: str | None = None
 
 
 class LoginRequest(BaseModel):
     """Request payload for user login."""
+
     email: str = Field(..., min_length=3)
 
 
 class PreferencesRequest(BaseModel):
     """Request payload for updating stored preferences."""
+
     preferences_blob: str | None = None
 
 
 class UserResponse(BaseModel):
     """Response model for a user record."""
+
     id: int
     email: str
     preferences: str | None
@@ -49,6 +53,7 @@ class UserResponse(BaseModel):
 
 class SessionResponse(BaseModel):
     """Response model for a login session."""
+
     session_token: str
     user: UserResponse
 

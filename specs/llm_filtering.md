@@ -1,7 +1,15 @@
 # Feature Specification: LLM Filtering
 
+## Status (2026-06-10)
+Mostly implemented, with one architectural difference from the original plan: the integration uses
+**LangChain** (`langchain-google-genai` for Gemini, `langchain-mistralai` for Mistral) instead of the raw
+`google-generativeai` SDK, and the logic lives in `src/valencia_events/personalization.py` rather than an
+`LLMFilter` class in `filters.py` (`filters.py` holds the deterministic tomorrow-filter and rank/limit
+fallback). Backend selection via `LLM_BACKEND` env var with model fallbacks. The multi-user loop in
+`cli.py` is done. Remaining: persist relevance scores/reasons to `users_events`.
+
 ## Overview
-Use an LLM (Gemini) to filter and rank daily events based on a user's natural language preferences.
+Use an LLM (Gemini or Mistral) to filter and rank daily events based on a user's natural language preferences.
 
 ## Requirements
 1.  **Input**:
@@ -20,7 +28,7 @@ Use an LLM (Gemini) to filter and rank daily events based on a user's natural la
     - Iterate through all active users, generating a custom email for each.
 
 ## Technical Architecture
-- **Model**: Gemini (likely `gemini-pro` via `google-generativeai` SDK).
+- **Model**: Gemini or Mistral via LangChain (`langchain-google-genai` / `langchain-mistralai`), with configurable primary and fallback models.
 - **Pipeline**:
     1.  `cli.py` fetches tomorrow's events.
     2.  `cli.py` loads active users.
@@ -32,7 +40,8 @@ Use an LLM (Gemini) to filter and rank daily events based on a user's natural la
         - Send email.
 
 ## Tasks
-- [ ] Add `google-generativeai` dependency.
-- [ ] Define LLM Prompt Template.
-- [ ] Implement `LLMFilter` class in `src/valencia_events/filters.py`.
-- [ ] Update `src/valencia_events/cli.py` to loop through users.
+- [x] Add LLM dependencies (LangChain: `langchain-google-genai`, `langchain-mistralai`).
+- [x] Define LLM Prompt Template.
+- [x] Implement ranking logic (`rank_events_for_family` in `src/valencia_events/personalization.py`).
+- [x] Update `src/valencia_events/cli.py` to loop through active users.
+- [ ] Persist `relevance_score` / `relevance_reason` to the `users_events` table.
