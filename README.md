@@ -21,11 +21,13 @@ This project automatically scrapes event information from various sources in Val
 
 The project core is implemented and running:
 
-- ✅ Scrapy spiders for gathering events (Visit Valencia)
+- ✅ Scrapy spiders for 8 sources (Visit Valencia, Ajuntament agenda, Palau de la Música, Les Arts, IVAM, València Secreta, Valencia Bonita, generic RSS)
 - ✅ Date parsing and normalization
 - ✅ SQLite storage with deduplication
+- ✅ LLM-based event ranking per user (Gemini or Mistral via LangChain)
 - ✅ Email generation (Jinja2 templates) and sending (SMTP)
 - ✅ Periodic execution via GitHub Actions
+- 🚧 User onboarding: FastAPI API and Cloudflare Pages/Worker dashboard exist in parallel; hosting/DB consolidation and verified authentication are still open (see [specs/user_management.md](specs/user_management.md))
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
@@ -70,6 +72,7 @@ The project uses SQLite (`events.db`) with the following schema:
   - `relevance_score`: LLM-assigned relevance.
   - `relevance_reason`: LLM explanation.
   - `is_sent`: Tracks if the event has been emailed to the user.
+  - *Note: the schema exists but the digest pipeline does not yet write to this table.*
 
 ## Quick Start
 

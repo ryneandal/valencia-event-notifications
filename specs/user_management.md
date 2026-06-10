@@ -1,5 +1,13 @@
 # Feature Specification: User Management
 
+## Status (2026-06-10)
+Partially implemented. There are currently **two parallel implementations**:
+
+- **FastAPI** (`src/valencia_events/web.py` + `onboarding.py` + `storage.py`): `/onboarding/*` routes, bearer-token sessions, SQLite `events.db`.
+- **Cloudflare** (`cloudflare/worker/src/` + `cloudflare/pages/public/`): `/api/*` routes, HttpOnly cookie sessions (SHA-256 hashed tokens), D1.
+
+The Pages frontend talks only to the Worker. Open decisions: hosting/DB strategy, consolidating to one stack, and real authentication — **login is currently email-only with no verification** (passwordless per the spirit of this spec, but with no proof of email ownership). Google OAuth and Passkeys are not implemented.
+
 ## Overview
 Implement a user authentication system and profile management to allow users to customize their event notifications.
 
@@ -40,8 +48,10 @@ Implement a user authentication system and profile management to allow users to 
         - **Decision**: For development/MVP, we will use the local SQLite file. For production, we will likely need a managed database or a volume mount if running in a container.
 
 ## Tasks
-- [ ] Research & Select Hosting/DB solution for persistent user data (SQLite on GHA is ephemeral unless committed).
-- [ ] Implement FastAPI app skeleton.
-- [ ] Implement Google OAuth2 login flow.
-- [ ] Implement User Model & Database migration.
-- [ ] Create Profile Page (HTML/Tailwind/Jinja2).
+- [ ] Research & Select Hosting/DB solution for persistent user data (SQLite on GHA is ephemeral unless committed; Cloudflare D1 is the current candidate).
+- [x] Implement FastAPI app skeleton (`src/valencia_events/web.py`).
+- [x] Implement User Model & Database schema (`users`, `user_sessions`, `users_events` in `storage.py`; D1 mirror in `cloudflare/worker/src/schema.sql`).
+- [x] Basic profile UI (Cloudflare Pages static frontend, `cloudflare/pages/public/` — plain HTML/JS, not Tailwind/Jinja2).
+- [ ] Implement verified authentication (minimum: email magic-link; target: Google OAuth2 and/or Passkeys).
+- [ ] Consolidate FastAPI and Cloudflare Worker stacks into one (unify routes, session model, and `preferences` vs `preferences_blob` field naming).
+- [ ] Populate `users_events` during digest sends (table exists, never written).
