@@ -24,6 +24,8 @@ dependencies = [
     "langchain>=0.3.0",
     "langchain-google-genai>=2.0.0",
     "langchain-mistralai>=0.2.0",
+    "ruff>=0.14.9",
+    "pytest>=9.0.2",
 ]
 
 [project.scripts]
