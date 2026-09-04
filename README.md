@@ -36,8 +36,8 @@ The project core is implemented and running:
 - ✅ A verified production profile with the complete personalization shape is stored in D1
 - ✅ Worker-native event collection, OpenRouter ranking with deterministic
   fallback, branded digest rendering, D1 history, and safe authenticated preview
-- 🚧 Production OpenRouter secret, Worker runtime/CPU confirmation, custom
-  Mailgun domain, and one controlled live digest remain before delivery cutover
+- 🚧 Worker runtime/CPU confirmation, custom Mailgun domain, authenticated
+  provider preview, and one controlled live digest remain before delivery cutover
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 

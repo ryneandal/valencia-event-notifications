@@ -55,8 +55,9 @@ allowance is not a safe production assumption for this workload.
 - Worker-compatible City agenda and ElPeriodic collectors, per-user OpenRouter
   ranking, deterministic fallback, branded digest rendering, delivery claims,
   retention cleanup, and authenticated per-user preview are implemented.
-- `DIGEST_DELIVERY_ENABLED=false` keeps Cron runs in dry-run mode until the
-  production OpenRouter secret, runtime plan, and controlled send are verified.
+- `OPENROUTER_API_KEY` is configured as an encrypted Worker secret.
+  `DIGEST_DELIVERY_ENABLED=false` keeps Cron runs in dry-run mode until the
+  runtime plan, authenticated provider preview, and controlled send are verified.
 - The React onboarding SPA, repository-root Pages Function, single-use magic-link
   Worker, D1 migration, branded verification email, and Mailgun delivery are live.
 

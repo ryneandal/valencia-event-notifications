@@ -50,5 +50,6 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
 - [x] Port ranking orchestration to the scheduled Cloudflare Worker.
 - [x] Persist ordered reasons, model ID, and fallback state to D1
   `recommendations` rows.
-- [ ] Configure the production `OPENROUTER_API_KEY` Worker secret and complete
-  one controlled live smoke before enabling digest delivery.
+- [x] Configure the production `OPENROUTER_API_KEY` Worker secret.
+- [ ] Complete an authenticated provider preview and one controlled live smoke
+  before enabling digest delivery.

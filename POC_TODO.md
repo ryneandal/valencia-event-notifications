@@ -55,8 +55,8 @@ authoritative until deliberately revised.
 
 ## Track B — Cloudflare-native digest runtime
 
-- [x] Prove lossless mapping between D1 `preferences_blob` and the Python
-  personalization profile through the legacy subscriber bridge tests.
+- [x] Prove lossless mapping between D1 `preferences_blob` and the six-field
+  Worker ranking profile through storage and orchestrator tests.
 - [ ] Confirm a Cloudflare Workers plan/runtime split with enough CPU for event
   parsing; the Free plan's Cron CPU budget is not a safe production assumption.
 - [x] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
@@ -69,15 +69,17 @@ authoritative until deliberately revised.
   both unverified and paused users without exporting account data.
 - [x] Call OpenRouter from the scheduled Worker, defaulting to
   `nvidia/nemotron-3-ultra-550b-a55b:free`, and validate its JSON response.
+- [x] Store `OPENROUTER_API_KEY` as an encrypted production Worker secret; only
+  the secret name was verified and no value was logged.
 - [x] Render digest email and implement bounded Mailgun HTTP delivery. Production
   digest sending remains disabled pending the controlled smoke.
 - [x] Add an authenticated dry-run path and per-user failure isolation.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
-- [x] Deploy and validate the Cron-triggered Worker. Production version
-  `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b` contains the safe end-to-end pipeline,
-  is healthy, keeps delivery disabled, and is registered with `0 8 * * *` UTC
-  as of 2026-09-04.
+- [x] Deploy and validate the Cron-triggered Worker. Current production version
+  `e0b4c68c-d486-45a5-a490-1679256185a6` is the OpenRouter secret change atop
+  pipeline version `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b`; it is healthy, keeps
+  delivery disabled, and is registered with `0 8 * * *` UTC as of 2026-09-04.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 
@@ -143,7 +145,7 @@ authoritative until deliberately revised.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
   - [x] Production Worker smoke (2026-09-04): version
-    `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b` starts without external tzdata,
+    `e0b4c68c-d486-45a5-a490-1679256185a6` starts without external tzdata,
     `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
     Cron delivery remains disabled.
 
