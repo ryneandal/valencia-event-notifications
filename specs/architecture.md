@@ -17,9 +17,9 @@ Browser
        active/paused state
        session and verification records
 
-Scheduled digest plane [upcoming]
-=================================
-Cloudflare Cron Trigger
+Scheduled digest plane
+======================
+Cloudflare Cron Trigger [deployed scaffold]
   -> scheduled handler on the existing Python Cloudflare Worker
   -> fetch and normalize event sources
   -> D1 event and delivery history
@@ -49,8 +49,9 @@ allowance is not a safe production assumption for this workload.
 
 ### Implemented, pending production activation or final smoke
 
-- A Cloudflare scheduled Worker, Cron Trigger, Worker-compatible event collectors,
-  D1 event/delivery history, per-user ranking, and digest delivery.
+- A Cloudflare scheduled handler and daily Cron Trigger are deployed; D1
+  event/run/recommendation/delivery storage is implemented pending migration.
+- Worker-compatible event collectors, per-user ranking, and digest delivery.
 - The React onboarding SPA, repository-root Pages Function, single-use magic-link
   Worker, D1 migration, branded verification email, and Mailgun delivery are live.
 
@@ -69,8 +70,8 @@ allowance is not a safe production assumption for this workload.
 | Personalization profile | D1 `users.preferences_blob` | JSON shape defined by `src/valencia_events/personalization.py`; UI mapping in `cloudflare/pages/src/profile.js` |
 | Subscription state | D1 | Only active subscribers are exported to the digest job |
 | Sessions and email verification | D1 | Private to the Worker; never exported to the batch job |
-| Scraped events and deduplication state | D1 (upcoming schema) | SQLite remains local migration/reference state only |
-| Recommendation and send history | D1 (upcoming schema) | Required for idempotent delivery and feedback |
+| Scraped events and deduplication state | D1 `events` | SQLite remains local migration/reference state only |
+| Recommendation and send history | D1 `digest_runs`, `recommendations`, `deliveries` | One run per digest date and one claimable delivery state per run/user pair |
 | Ranking behavior and provider fallback | Scheduled Worker; Python implementation is the migration reference | OpenRouter/Nemotron by default, then deterministic fallback |
 | PoC work status | `POC_TODO.md` | Update as implementation and validation finish |
 | General backlog | `task.md` | Must agree with implementation/tests, not supersede them |

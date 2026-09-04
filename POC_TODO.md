@@ -58,7 +58,7 @@ authoritative until deliberately revised.
   personalization profile through the legacy subscriber bridge tests.
 - [ ] Confirm a Cloudflare Workers plan/runtime split with enough CPU for event
   parsing; the Free plan's Cron CPU budget is not a safe production assumption.
-- [ ] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
+- [x] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
 - [ ] Port event collection and normalization to Worker-compatible asynchronous
   fetch/parsing; Scrapy and cached SQLite remain local migration references only.
 - [ ] Add D1 event, recommendation, and delivery-history tables with idempotent
@@ -70,7 +70,9 @@ authoritative until deliberately revised.
 - [ ] Add an authenticated dry-run path and per-user failure isolation.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
-- [ ] Deploy and validate the Cron-triggered Worker.
+- [x] Deploy and validate the Cron-triggered Worker. Production version
+  `d869fffa-e0ac-427d-b27f-f71b7e851493` is healthy and registered with
+  `0 8 * * *` UTC as of 2026-09-04.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 

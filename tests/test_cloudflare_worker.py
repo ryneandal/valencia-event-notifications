@@ -551,7 +551,15 @@ def test_schema_migration_is_additive_and_idempotent():
             "SELECT name FROM sqlite_master WHERE type = 'table'"
         )
     }
-    assert {"users", "sessions", "magic_links"} <= tables
+    assert {
+        "users",
+        "sessions",
+        "magic_links",
+        "events",
+        "digest_runs",
+        "recommendations",
+        "deliveries",
+    } <= tables
 
 
 def test_scheduled_handler_emits_safe_scaffold_event(capsys):

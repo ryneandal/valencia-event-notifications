@@ -27,7 +27,7 @@ not a separately deployed application.
 | Python Worker with D1 binding | Deployed |
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
-| Cloudflare Cron digest Worker | Upcoming; the legacy GitHub Actions schedule is removed |
+| Cloudflare Cron digest Worker | Trigger and safe scaffold deployed; collection, ranking, and delivery remain upcoming |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
@@ -45,7 +45,7 @@ Browser
   -> Python Worker
   -> D1 (subscriber, profile, session/auth state)
 
-Cloudflare Cron Trigger [upcoming]
+Cloudflare Cron Trigger [deployed scaffold]
   -> scheduled Worker
   -> fetch and normalize events into D1
   -> load active subscriber profiles directly from D1
@@ -119,7 +119,7 @@ Interactive local deployments may use `wrangler login`. CI/Terraform should use
 a narrowly scoped `CLOUDFLARE_API_TOKEN` and the appropriate Cloudflare account
 and zone IDs. Never commit `terraform.tfvars`, `.dev.vars`, or real tokens.
 
-The upcoming scheduled Worker uses a Cron Trigger and direct D1 binding. Store
+The scheduled Worker uses a Cron Trigger and direct D1 binding. Store
 `OPENROUTER_API_KEY` and the digest Mailgun credential as Worker secrets. Its
 default backend/model are `openrouter` and
 `nvidia/nemotron-3-ultra-550b-a55b:free`. Provider/backend/model configuration
@@ -131,6 +131,21 @@ Worker and D1 binding. This keeps deployment and secrets in one place while the
 subscriber count is small. The configured `0 8 * * *` trigger runs at 08:00 UTC,
 which is 09:00 CET or 10:00 CEST in València. Move per-subscriber work to a Queue
 consumer only when fan-out or execution limits justify the additional component.
+
+### D1 batch-processing state
+
+The forward-only schema keeps normalized `events`, one `digest_runs` row per
+València digest date, per-user ranked `recommendations`, and one `deliveries`
+state row per run/user pair. Event identity is the SHA-256 of normalized title,
+start, and URL. A failed delivery can be claimed again, while a pending or sent
+row cannot be claimed twice; provider message IDs and sanitized failure codes
+are retained without credentials or response bodies.
+
+The scheduled cleanup policy is to retain digest, recommendation, and delivery
+history for 90 days. Events unseen for 30 days may be removed only after no
+retained recommendation references them. `delete_expired_history()` performs
+deletion in dependency order; the orchestrator must supply UTC ISO/date cutoffs
+and report only aggregate row counts.
 
 ## Local development
 
