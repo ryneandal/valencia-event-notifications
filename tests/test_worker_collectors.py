@@ -75,11 +75,53 @@ def test_parses_ajuntament_embedded_events_without_scrapy():
     assert events[0] == {
         "title": "Teatro familiar en el centro",
         "start_at": "2026-02-22T12:00:00+01:00",
+        "end_at": "",
         "url": "https://www.valencia.es/cas/agenda-de-la-ciudad/-/content/teatro-familiar-centro",
         "description": "TEATRO. Función familiar",
     }
     assert events[1]["url"].endswith("/cas/agenda-evento/concierto-peques")
     assert events[1]["start_at"] == "2026-02-21T08:00:00+01:00"
+    assert events[1]["end_at"] == ""
+
+
+def test_active_ranges_include_short_runs_and_final_days_without_generic_noise():
+    target = date(2026, 9, 5)
+    events = [
+        {
+            "title": "Short festival",
+            "start_at": "2026-08-28T12:00:00+02:00",
+            "end_at": "2026-09-05T12:00:00+02:00",
+            "url": "https://example.com/festival",
+            "description": "Circus programme",
+        },
+        {
+            "title": "Year-round listings page",
+            "start_at": "2026-01-02T12:00:00+01:00",
+            "end_at": "2026-12-31T12:00:00+01:00",
+            "url": "https://example.com/listings",
+            "description": "Generic programme",
+        },
+        {
+            "title": "Exhibition closing tomorrow",
+            "start_at": "2026-04-23T12:00:00+02:00",
+            "end_at": "2026-09-05T12:00:00+02:00",
+            "url": "https://example.com/exhibition",
+            "description": "Final chance",
+        },
+    ]
+
+    selected = [
+        collectors.event_for_target(event, "fixture", target)
+        for event in events
+        if collectors.event_matches_date(event, target)
+    ]
+
+    assert [event["title"] for event in selected] == [
+        "Short festival",
+        "Exhibition closing tomorrow",
+    ]
+    assert all("end_at" not in event for event in selected)
+    assert all("through 2026-09-05" in event["description"] for event in selected)
 
 
 def test_collection_is_bounded_filtered_and_failure_isolated():

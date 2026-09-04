@@ -166,8 +166,11 @@ agenda and the ElPeriodic València RSS feed. Each request identifies Brisa,
 times out after 10 seconds, and runs once per digest date. Adapters are
 fixture-tested without network calls, one source failure does not discard other
 results, and diagnostics record only source names, counts, and sanitized error
-codes. Operators must continue to honor each publisher's robots policy and avoid
-raising the daily request frequency without review.
+codes. City events are eligible on their start date, throughout active ranges up
+to 14 days, or on the closing day of a longer run; this retains useful festivals
+and final-chance exhibitions without repeating generic year-long programme pages
+every day. Operators must continue to honor each publisher's robots policy and
+avoid raising the daily request frequency without review.
 
 ## Local development
 

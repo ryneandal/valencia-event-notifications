@@ -77,9 +77,9 @@ authoritative until deliberately revised.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
 - [x] Deploy and validate the Cron-triggered Worker. Current production version
-  `e0b4c68c-d486-45a5-a490-1679256185a6` is the OpenRouter secret change atop
-  pipeline version `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b`; it is healthy, keeps
-  delivery disabled, and is registered with `0 8 * * *` UTC as of 2026-09-04.
+  `18cb7687-fcc9-4e1a-80fa-dfe2af3617ac` is healthy, has the encrypted OpenRouter
+  secret, keeps delivery disabled, and is registered with `0 8 * * *` UTC as of
+  2026-09-04.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 
@@ -136,18 +136,23 @@ authoritative until deliberately revised.
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-04): 88 Python tests and 10 frontend tests
+  - [x] Local verification (2026-09-04): 89 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (73.10 KiB upload, 16.91 KiB gzip).
+    Wrangler Worker bundle dry-run pass (74.96 KiB upload, 17.35 KiB gzip).
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
   - [x] Production Worker smoke (2026-09-04): version
-    `e0b4c68c-d486-45a5-a490-1679256185a6` starts without external tzdata,
+    `18cb7687-fcc9-4e1a-80fa-dfe2af3617ac` starts without external tzdata,
     `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
     Cron delivery remains disabled.
+  - [x] Live source probe (2026-09-04): the City agenda parsed 75 records and the
+    corrected active-range policy found two candidates for 2026-09-05; the
+    ElPeriodic feed parsed 30 records and found zero. Short active ranges and a
+    longer event's closing day are eligible, while generic year-long programme
+    pages are excluded.
 
 ## Post-PoC
 

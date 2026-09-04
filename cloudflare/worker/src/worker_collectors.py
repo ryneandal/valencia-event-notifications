@@ -14,6 +14,7 @@ from worker_storage import upsert_event
 from worker_time import localize_madrid, madrid_noon, to_madrid
 
 FETCH_TIMEOUT_MS = 10_000
+MAX_ACTIVE_RANGE_DAYS = 14
 USER_AGENT = "BrisaEventDigest/0.1 (+https://valencia-event-notifications.pages.dev)"
 
 
@@ -137,12 +138,20 @@ def parse_ajuntament_agenda(text: str, source_url: str) -> list[dict[str, str]]:
             start_at = normalize_start(raw_start)
         except ValueError:
             continue
+        raw_end = str(item.get("endDate") or "")
+        try:
+            end_at = normalize_start(raw_end) if raw_end else ""
+        except ValueError:
+            end_at = ""
+        if end_at and datetime.fromisoformat(end_at) < datetime.fromisoformat(start_at):
+            end_at = ""
         category = _clean_text(item.get("categoria"))
         description = _clean_text(item.get("description"))
         events.append(
             {
                 "title": title,
                 "start_at": start_at,
+                "end_at": end_at,
                 "url": urljoin(source_url, relative_url),
                 "description": ". ".join(
                     part for part in (category, description) if part
@@ -201,6 +210,38 @@ def _error_code(error: Exception) -> str:
     return error.__class__.__name__.lower()[:64]
 
 
+def event_matches_date(event: dict[str, str], target_date: date) -> bool:
+    """Include starts, short active ranges, and the final day of longer runs."""
+    start_date = datetime.fromisoformat(event["start_at"]).date()
+    if start_date == target_date:
+        return True
+    raw_end = event.get("end_at")
+    if not raw_end:
+        return False
+    end_date = datetime.fromisoformat(raw_end).date()
+    if not start_date <= target_date <= end_date:
+        return False
+    return (
+        end_date == target_date or (end_date - start_date).days <= MAX_ACTIVE_RANGE_DAYS
+    )
+
+
+def event_for_target(
+    event: dict[str, str], source_name: str, target_date: date
+) -> dict[str, str]:
+    """Drop transient range state and add useful range context for ranking."""
+    selected = {**event, "source": source_name}
+    raw_end = selected.pop("end_at", "")
+    if raw_end:
+        start_date = datetime.fromisoformat(selected["start_at"]).date()
+        end_date = datetime.fromisoformat(raw_end).date()
+        if start_date != end_date:
+            context = f"Runs {start_date.isoformat()} through {end_date.isoformat()}"
+            description = selected.get("description", "").rstrip(". ")
+            selected["description"] = f"{description}. {context}.".lstrip(". ")
+    return selected
+
+
 async def collect_events(
     env: Any,
     target_date: date,
@@ -214,9 +255,9 @@ async def collect_events(
             text = await fetch_source(env, source)
             parsed = source.parser(text, source.url)
             selected = [
-                {**event, "source": source.name}
+                event_for_target(event, source.name, target_date)
                 for event in parsed
-                if datetime.fromisoformat(event["start_at"]).date() == target_date
+                if event_matches_date(event, target_date)
             ]
             matching.extend(selected)
             diagnostics.append(
@@ -242,5 +283,14 @@ async def persist_events(db: Any, events: list[dict[str, str]]) -> int:
     """Idempotently persist collected normalized events and return unique count."""
     keys: set[str] = set()
     for event in events:
-        keys.add(await upsert_event(db, **event))
+        keys.add(
+            await upsert_event(
+                db,
+                title=event["title"],
+                start_at=event["start_at"],
+                url=event["url"],
+                description=event.get("description", ""),
+                source=event["source"],
+            )
+        )
     return len(keys)
