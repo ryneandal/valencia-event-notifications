@@ -8,7 +8,7 @@ The PoC has two execution planes joined through a narrow subscriber interface:
 Interactive web plane
 =====================
 Browser
-  -> React/Vite SPA on Git-connected Cloudflare Pages [implemented; deploy pending]
+  -> React/Vite SPA on Git-connected Cloudflare Pages [deployed]
   -> same-origin Pages Function (/api/*) [deployed]
   -> Python Cloudflare Worker [deployed]
   -> D1 [deployed]
@@ -47,16 +47,14 @@ pipeline remains reusable.
   delivery.
 - Gemini, Mistral, and OpenRouter ranking backends with deterministic fallback.
 
-### Implemented, pending production deployment
+### Implemented, pending production activation or final smoke
 
-- React multi-step onboarding UI that captures the complete personalization
-  profile and replaces the static dashboard. Its build and frontend contract
-  tests pass.
 - Direct D1 HTTP subscriber loader for the scheduled job. Its tests pass; GitHub
   credentials/IDs and a successful production run are still pending.
-- Single-use magic-link Worker authentication. Its tests and Wrangler dry-run
-  pass and the additive D1 migration is applied; email-provider configuration
-  and production deployment are still pending.
+- The React onboarding SPA, repository-root Pages Function, single-use
+  magic-link Worker, D1 migration, and Mailgun delivery are deployed. The
+  controlled email was accepted and delivered; browser consumption of its
+  one-time link remains the final interactive smoke step.
 
 ### Later hardening
 

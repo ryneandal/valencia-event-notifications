@@ -189,10 +189,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 The deployed interactive stack lives under [`cloudflare/`](cloudflare/):
 
-- `cloudflare/pages/public/`: currently deployed static dashboard and React/Vite
-  build destination.
-- `cloudflare/pages/src/`: tested React personalization onboarding SPA, pending
-  production deployment.
+- `cloudflare/pages/public/`: deployed React/Vite build destination.
+- `cloudflare/pages/src/`: production React personalization onboarding SPA.
 - `functions/`: same-origin `/api/*` Worker proxy discovered from the Pages
   project's repository root.
 - `cloudflare/worker/src/`: deployed Python Worker API with canonical D1-backed

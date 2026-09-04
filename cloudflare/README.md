@@ -23,20 +23,18 @@ not a separately deployed application.
 | Capability | State |
 | --- | --- |
 | Git-connected Cloudflare Pages project | Deployed; `main` is production and other branches can receive previews |
-| Static Pages dashboard and same-origin API proxy | Deployed |
+| React personalization onboarding SPA and same-origin API proxy | Deployed from Git-connected `main` |
 | Python Worker with D1 binding | Deployed |
-| React personalization onboarding SPA | Implemented and passing frontend contract tests; production deploy pending |
-| Email-only register/login sessions | Implemented for development, but not safe for public authentication |
-| Verified email magic links | Worker deployed with Mailgun and migrated D1; compatible React Pages deploy pending |
+| Email-only register/login sessions | Superseded in production; retained only in older local tooling |
+| Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Scheduled job reads active D1 subscribers | Implemented and tested; production configuration/run pending |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
 
-The currently deployed magic-link Worker requires the React SPA contract. Until
-the Git-connected `main` branch or a credentialed direct Pages deployment ships
-the React build, the older static Pages dashboard is not a usable registration
-client.
+The deployed React SPA, repository-root Pages Function proxy, magic-link Worker,
+and Mailgun sandbox now share the production contract. A controlled registration
+returned `202`, and Mailgun reported both `accepted` and `delivered`.
 
 ## Request and data flow
 

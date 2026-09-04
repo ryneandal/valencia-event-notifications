@@ -44,7 +44,8 @@ authoritative until deliberately revised.
   layouts, reduced-motion support, and useful API error states.
 - [x] Add deterministic frontend tests for profile construction and API payloads.
 - [x] Build the React SPA for the existing Pages project.
-- [ ] Deploy the React SPA to the existing Pages project.
+- [x] Deploy the React SPA to the existing Pages project from the Git-connected
+  `main` branch.
 - [ ] Verify the live SPA writes the expected profile JSON to D1.
 
 ## Track B — Production subscriber bridge (owner: delegated agent)
@@ -79,9 +80,8 @@ authoritative until deliberately revised.
 - [x] Add and verify a Mailgun sandbox Authorized Recipient.
 - [x] Store `MAILGUN_API_KEY` as an encrypted Worker secret.
 - [x] Deploy the verified magic-link Worker with Mailgun configuration.
-- [ ] Deploy the compatible React SPA. The direct Pages upload needs an explicit
-  Cloudflare API token, or the current changes must be committed and pushed to
-  the Git-connected `main` production branch.
+- [x] Deploy the compatible React SPA and repository-root Pages Function proxy
+  from the Git-connected `main` production branch.
 
 ## Track D — Digest completion
 
@@ -103,15 +103,18 @@ authoritative until deliberately revised.
 - [x] Add a concise architecture/data-flow diagram and source-of-truth statement.
 - [x] Reconcile `task.md`, README files, examples, and obsolete FastAPI/SQLite
   claims without deleting still-useful local tooling.
-- [ ] Ensure all implementation changes are committed and pushed so a future
+- [x] Ensure all implementation changes are committed and pushed so a future
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-04): 82 Python tests and 7 frontend tests
+  - [x] Local verification (2026-09-04): 83 Python tests and 7 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (21.00 KiB upload, 4.82 KiB gzip).
-  - [ ] Repeat health and end-to-end smoke checks after the React SPA and
-    magic-link Worker are deployed together.
+    Wrangler Worker bundle dry-run pass (21.78 KiB upload, 5.09 KiB gzip).
+  - [x] Production health smoke (2026-09-04): React assets and the same-origin
+    Pages Function proxy are live; registration returned `202`; Mailgun reported
+    both `accepted` and `delivered` without exposing the recipient or token.
+  - [ ] Complete the one-time link in a browser and verify the resulting session
+    and persisted D1 profile.
 
 ## Final acceptance
 

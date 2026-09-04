@@ -3,17 +3,15 @@
 ## Status (2026-09-04)
 
 The production direction is decided: Cloudflare is the interactive web stack.
-The Git-connected Pages project, static dashboard, same-origin API proxy, Python
-Worker, and D1 database are deployed. The repository is replacing the static
-dashboard with a React/Vite single-page onboarding experience.
+The Git-connected Pages project serves the React/Vite onboarding SPA and
+same-origin API proxy. The Python Worker, D1 database, single-use magic links,
+and Mailgun sandbox delivery are also deployed.
 
-Three important pieces are not yet production-complete:
+Two important pieces are not yet production-complete:
 
-- the React personalization onboarding SPA is implemented and passing its
-  frontend contract tests, but is still pending production deployment;
-- verified email magic-link authentication is implemented and tested, and its
-  D1 migration is applied; provider configuration and Worker deployment remain pending; the
-  currently deployed email-only login does not prove ownership; and
+- the controlled production registration email has been accepted and delivered,
+  but the one-time browser verification/session/profile smoke test still needs
+  completion; and
 - the tested D1 subscriber loader is implemented, but requires production
   GitHub variables/credentials and a successful scheduled run before it is
   considered operational.
