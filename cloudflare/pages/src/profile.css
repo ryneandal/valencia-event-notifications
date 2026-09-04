@@ -1,0 +1,220 @@
+.form-panel {
+  overflow-y: auto;
+}
+
+.form-inner {
+  min-height: calc(100vh - 92px);
+  padding-top: clamp(36px, 6vh, 72px);
+}
+
+.step {
+  width: 100%;
+}
+
+.step .eyebrow {
+  margin: 0 0 10px;
+  color: var(--teal);
+  font: 500 10px/1.2 'DM Mono', monospace;
+  letter-spacing: 0.14em;
+}
+
+.choice-card small,
+.interest-chip small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.location-grid {
+  grid-template-columns: 1fr;
+}
+
+.location-grid .interest-chip,
+.season-grid .interest-chip {
+  align-items: flex-start;
+  min-height: 72px;
+}
+
+.location-grid .interest-chip > span:nth-of-type(2),
+.season-grid .interest-chip > span:nth-of-type(2),
+.interest-grid .interest-chip > span:nth-of-type(2) {
+  min-width: 0;
+}
+
+.location-grid strong,
+.season-grid strong,
+.interest-grid strong {
+  color: var(--navy);
+  font: 600 13px/1.2 Fraunces, Georgia, serif;
+}
+
+.interest-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.interest-grid .interest-chip {
+  align-items: flex-start;
+  min-height: 94px;
+}
+
+.signals-layout {
+  display: grid;
+  gap: 28px;
+}
+
+.signal-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.signal-group legend {
+  margin-bottom: 11px;
+  color: var(--navy);
+  font: 600 13px/1.2 Fraunces, Georgia, serif;
+}
+
+.signal-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signal-grid .interest-chip {
+  min-height: 40px;
+  padding: 10px 12px;
+}
+
+.avoid-group .interest-chip.is-checked {
+  border-color: #e8ad9e;
+  background: #fff1ec;
+}
+
+.season-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.status-message,
+.error-message {
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.status-message {
+  color: #17635f;
+  background: #edf7f1;
+}
+
+.error-message {
+  color: #9a392d;
+  background: #fff0ec;
+}
+
+.resume-button,
+.text-button {
+  border: 0;
+  color: var(--teal);
+  background: transparent;
+  cursor: pointer;
+  font: 600 11px/1.2 'DM Sans', sans-serif;
+}
+
+.resume-button {
+  margin-top: 18px;
+  padding: 5px 0;
+}
+
+.resume-button:hover,
+.text-button:hover {
+  text-decoration: underline;
+}
+
+.resume-button:disabled,
+.text-button:disabled,
+.next-button:disabled,
+.back-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.review-row {
+  grid-template-columns: minmax(78px, 0.3fr) 1fr;
+}
+
+.review-row strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.success-screen.form-panel {
+  position: relative;
+  inset: auto;
+  display: flex;
+  min-height: 100vh;
+  padding: clamp(36px, 8vw, 96px);
+}
+
+.success-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 26px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 850px) {
+  .form-panel {
+    overflow: visible;
+  }
+
+  .form-inner {
+    min-height: 650px;
+  }
+
+  .success-screen.form-panel {
+    min-height: 650px;
+  }
+}
+
+@media (max-width: 520px) {
+  .interest-grid,
+  .season-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .choice-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .choice-card {
+    min-height: 115px;
+  }
+
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 0;
+    background: linear-gradient(to bottom, transparent, var(--paper) 24%);
+  }
+}

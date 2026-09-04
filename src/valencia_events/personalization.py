@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from dotenv import dotenv_values
 from pydantic import BaseModel, Field
 
 from .filters import rank_and_limit_events
@@ -19,6 +20,7 @@ logger = get_logger(__name__)
 DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
 DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-2.5-pro"
 DEFAULT_MISTRAL_MODEL = "mistral-medium-2508"
+DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 
 DEFAULT_FAMILY_PROFILE: dict[str, Any] = {
     "audience": "family_with_school_age_kids",
@@ -174,10 +176,10 @@ class GeminiEventRanker:
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             return None
-        model = os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
-        fallback_model = os.environ.get(
-            "GEMINI_FALLBACK_MODEL",
-            DEFAULT_GEMINI_FALLBACK_MODEL,
+        model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
+        fallback_model = (
+            os.environ.get("GEMINI_FALLBACK_MODEL", "").strip()
+            or DEFAULT_GEMINI_FALLBACK_MODEL
         )
         return cls(
             api_key=api_key,
@@ -345,8 +347,8 @@ class MistralEventRanker(GeminiEventRanker):
         api_key = os.environ.get("MISTRAL_API_KEY")
         if not api_key:
             return None
-        model = os.environ.get("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL)
-        fallback_model = os.environ.get("MISTRAL_FALLBACK_MODEL", "")
+        model = os.environ.get("MISTRAL_MODEL", "").strip() or DEFAULT_MISTRAL_MODEL
+        fallback_model = os.environ.get("MISTRAL_FALLBACK_MODEL", "").strip()
         return cls(
             api_key=api_key,
             model=model,
@@ -411,6 +413,89 @@ class MistralEventRanker(GeminiEventRanker):
         )
 
 
+class OpenRouterEventRanker(GeminiEventRanker):
+    """Rank events with OpenRouter via its dedicated LangChain integration."""
+
+    @classmethod
+    def from_env(cls) -> OpenRouterEventRanker | None:
+        dotenv_config = dotenv_values(".env")
+
+        def setting(name: str) -> str:
+            return (os.environ.get(name) or dotenv_config.get(name) or "").strip()
+
+        api_key = setting("OPENROUTER_API_KEY")
+        if not api_key:
+            return None
+        model = setting("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL
+        fallback_model = setting("OPENROUTER_FALLBACK_MODEL")
+        return cls(
+            api_key=api_key,
+            model=model,
+            fallback_model=fallback_model,
+        )
+
+    def _check_dependencies(self) -> None:
+        try:
+            from langchain_core.prompts import ChatPromptTemplate  # noqa: F401
+            from langchain_openrouter import ChatOpenRouter  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("LangChain OpenRouter dependencies are missing") from exc
+
+    def _invoke_model(
+        self,
+        *,
+        model: str,
+        family_profile: dict[str, Any],
+        event_payload: list[dict[str, str]],
+        limit: int,
+    ) -> GeminiRankingResponse:
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_openrouter import ChatOpenRouter
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    (
+                        "You are a family event curator for Valencia. "
+                        "Use the provided family profile to rank events. "
+                        "Return a concise summary and ordered event hashes."
+                    ),
+                ),
+                (
+                    "human",
+                    (
+                        "Family profile JSON:\n{family_profile_json}\n\n"
+                        "Candidate events JSON:\n{events_json}\n\n"
+                        "Select up to {limit} events and return ranked output. "
+                        "Include selected_events with event_hash and reason. "
+                        "Reasons should be short and family-focused."
+                    ),
+                ),
+            ]
+        )
+
+        llm = ChatOpenRouter(
+            model=model,
+            api_key=self.api_key,
+            temperature=0,
+            openrouter_provider={"require_parameters": True},
+        )
+        chain = prompt | llm.with_structured_output(
+            GeminiRankingResponse,
+            method="json_schema",
+        )
+        return chain.invoke(
+            {
+                "family_profile_json": json.dumps(
+                    family_profile, ensure_ascii=False, indent=2
+                ),
+                "events_json": json.dumps(event_payload, ensure_ascii=False, indent=2),
+                "limit": str(limit),
+            }
+        )
+
+
 def load_family_profile() -> dict[str, Any]:
     """Load family profile from env override or default profile."""
     raw = os.environ.get("FAMILY_PROFILE_JSON")
@@ -449,7 +534,10 @@ def rank_events_for_family(
     events: list[Event],
     *,
     limit: int = 20,
-    ranker: GeminiEventRanker | MistralEventRanker | None = None,
+    ranker: GeminiEventRanker
+    | MistralEventRanker
+    | OpenRouterEventRanker
+    | None = None,
     family_profile: dict[str, Any] | None = None,
 ) -> PersonalizedSelection:
     """Rank events using a configured LLM; fall back deterministically."""
@@ -484,15 +572,23 @@ def rank_events_for_family(
         )
 
 
-def _ranker_from_env() -> GeminiEventRanker | MistralEventRanker | None:
+def _ranker_from_env() -> (
+    GeminiEventRanker | MistralEventRanker | OpenRouterEventRanker | None
+):
     """Build the configured LLM ranker from environment variables."""
     backend = os.environ.get("LLM_BACKEND", "").strip().lower()
     if backend == "mistral":
         return MistralEventRanker.from_env()
     if backend == "gemini":
         return GeminiEventRanker.from_env()
+    if backend == "openrouter":
+        return OpenRouterEventRanker.from_env()
     if backend:
         logger.warning(f"Unsupported LLM_BACKEND={backend}; using default ranking")
         return None
 
-    return MistralEventRanker.from_env() or GeminiEventRanker.from_env()
+    return (
+        MistralEventRanker.from_env()
+        or GeminiEventRanker.from_env()
+        or OpenRouterEventRanker.from_env()
+    )

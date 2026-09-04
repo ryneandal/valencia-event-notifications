@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#12394a" />
+    <meta name="description" content="Set up your personalised València next-day events digest." />
+    <title>Brisa — find your rhythm in València</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="onboarding-shell">
+      <section class="story-panel" aria-label="About Brisa">
+        <a class="brand" href="#top" aria-label="Brisa home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><circle cx="18" cy="15" r="7"/><path d="M5 23c4.3-3 7.2 4 12.5 1.3C22.6 21.6 25.3 26 31 22M5 28c4.3-3 7.2 4 12.5 1.3C22.6 26.6 25.3 31 31 27"/></svg></span><span><strong>brisa</strong><small>next day in València</small></span></a>
+        <div class="story-copy"><p class="eyebrow eyebrow--light"><span aria-hidden="true">✳</span> A little local knowledge</p><h1>Make room for <em>good days.</em></h1><p>Brisa learns what makes your household tick, then sends a thoughtful handful of things to do tomorrow.</p></div>
+        <div class="sunset-illustration" aria-hidden="true"><div class="sun"></div><div class="building building-one"></div><div class="building building-two"></div><div class="building building-three"></div><div class="palm"><i></i><i></i><i></i><i></i><b></b></div><div class="sea-line sea-one"></div><div class="sea-line sea-two"></div><span class="tile tile-one"></span><span class="tile tile-two"></span><span class="tile tile-three"></span></div>
+        <div class="story-footer"><span>01</span><div><i></i><i></i><i></i><i></i><i></i></div><span>05</span></div>
+      </section>
+
+      <section class="form-panel" id="top">
+        <header class="topbar"><span class="step-label" id="step-label">Step 01 <span>of 05</span></span><button class="close-button" type="button" aria-label="Close onboarding">×</button></header>
+        <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+        <div class="form-inner">
+          <div class="step is-current" data-step="1" aria-labelledby="step-title-1">
+            <p class="eyebrow">Start with a hello</p><h2 id="step-title-1">Where should we send<br /><em>your next day?</em></h2><p class="step-intro">A quiet little email with the best of tomorrow in València. No noise, no inbox clutter.</p>
+            <label class="field-label" for="email">Your email address</label><input class="text-input" id="email" type="email" autocomplete="email" placeholder="you@example.com" required /><p class="field-hint"><svg aria-hidden="true"><use href="#i-lock"/></svg> We only use this for your Brisa digest.</p>
+            <div class="reassurance"><span aria-hidden="true">✦</span><p><strong>Built for tomorrow.</strong><br />Your first digest arrives after you finish setting things up.</p></div>
+          </div>
+          <div class="step" data-step="2" aria-labelledby="step-title-2" hidden>
+            <p class="eyebrow">A little context</p><h2 id="step-title-2">Who are we<br /><em>planning for?</em></h2><p class="step-intro">This helps us keep the suggestions genuinely useful. Pick the closest fit.</p>
+            <fieldset class="choice-grid choice-grid--audience"><legend class="sr-only">Choose your household</legend><label class="choice-card"><input type="radio" name="audience" value="just-me" checked /><span class="choice-icon">◌</span><strong>Just me</strong><small>Solo plans &amp; little discoveries</small></label><label class="choice-card"><input type="radio" name="audience" value="two"><span class="choice-icon">◌ ◌</span><strong>Two of us</strong><small>Plans worth sharing</small></label><label class="choice-card"><input type="radio" name="audience" value="family"><span class="choice-icon">◌ ◌<br />◌ ◌</span><strong>Our family</strong><small>Easy wins for everyone</small></label><label class="choice-card"><input type="radio" name="audience" value="friends"><span class="choice-icon">✣</span><strong>My friends &amp; me</strong><small>Make a day of it</small></label></fieldset>
+          </div>
+          <div class="step" data-step="3" aria-labelledby="step-title-3" hidden>
+            <p class="eyebrow">The fun part</p><h2 id="step-title-3">What makes a day<br /><em>feel like yours?</em></h2><p class="step-intro">Choose as many as you like. We’ll use these to shape your daily digest.</p>
+            <fieldset class="interest-grid"><legend class="sr-only">Choose your interests</legend><label class="interest-chip is-checked"><input type="checkbox" name="interest" value="music" checked /><span class="interest-symbol">♫</span><span>Live music</span><b>✓</b></label><label class="interest-chip is-checked"><input type="checkbox" name="interest" value="food" checked /><span class="interest-symbol">✣</span><span>Good food</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="art" /><span class="interest-symbol">▧</span><span>Art &amp; culture</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="outdoors" /><span class="interest-symbol">⌁</span><span>Outdoors</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="cinema" /><span class="interest-symbol">▹</span><span>Independent cinema</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="family" /><span class="interest-symbol">♡</span><span>Family-friendly</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="markets" /><span class="interest-symbol">⌂</span><span>Markets &amp; makers</span><b>✓</b></label><label class="interest-chip"><input type="checkbox" name="interest" value="nightlife" /><span class="interest-symbol">☾</span><span>After dark</span><b>✓</b></label></fieldset>
+          </div>
+          <div class="step" data-step="4" aria-labelledby="step-title-4" hidden>
+            <p class="eyebrow">Make it fit</p><h2 id="step-title-4">Your kind of<br /><em>tomorrow.</em></h2><p class="step-intro">A few practical details make the recommendations land better.</p>
+            <div class="field-group"><label class="field-label" for="area">Where do you usually start from?</label><div class="select-wrap"><select class="text-input" id="area"><option>Ruzafa</option><option>El Carmen</option><option>Cabanyal &amp; the beach</option><option>Benimaclet</option><option>Somewhere else in València</option></select><svg aria-hidden="true"><use href="#i-chevron"/></svg></div></div>
+            <div class="field-group"><span class="field-label" id="time-label">When should Brisa write?</span><div class="time-options" role="group" aria-labelledby="time-label"><label><input type="radio" name="time" checked value="morning" /><span>In my morning<br /><small>around 07:30</small></span></label><label><input type="radio" name="time" value="evening" /><span>The evening before<br /><small>around 18:00</small></span></label></div></div>
+            <label class="toggle-row"><input type="checkbox" checked /><span class="toggle" aria-hidden="true"></span><span><strong>Keep it accessible</strong><small>Prioritise step-free places and clear practical details.</small></span></label>
+          </div>
+          <div class="step review-step" data-step="5" aria-labelledby="step-title-5" hidden>
+            <p class="eyebrow">One last look</p><h2 id="step-title-5">This feels like<br /><em>a good start.</em></h2><p class="step-intro">Here’s what Brisa will use to make your digest personal. You can tune it anytime.</p>
+            <div class="review-card"><div class="review-row"><span>Email</span><strong id="review-email">you@example.com</strong><button type="button" class="edit-link" data-back="1">Edit</button></div><div class="review-row"><span>Planning for</span><strong id="review-audience">Just me</strong><button type="button" class="edit-link" data-back="2">Edit</button></div><div class="review-row"><span>Into</span><strong id="review-interests">Live music, Good food</strong><button type="button" class="edit-link" data-back="3">Edit</button></div><div class="review-row"><span>First email</span><strong id="review-timing">Tomorrow at 07:30</strong><button type="button" class="edit-link" data-back="4">Edit</button></div></div>
+            <div class="privacy-note"><svg aria-hidden="true"><use href="#i-lock"/></svg><span><strong>Your preferences stay yours.</strong><br />We use them to curate your digest, never to sell your data.</span></div>
+          </div>
+          <div class="form-actions"><button class="back-button" id="back-button" type="button" hidden><svg aria-hidden="true"><use href="#i-back"/></svg> Back</button><button class="next-button" id="next-button" type="button">Continue <svg aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+          <p class="login-prompt">Already have a Brisa account? <button type="button" data-action="login">Sign in</button></p>
+        </div>
+      </section>
+    </main>
+    <section class="success-screen" id="success-screen" hidden><div class="success-mark" aria-hidden="true">✦</div><p class="eyebrow">You’re all set</p><h2>Tomorrow just<br /><em>got brighter.</em></h2><p>We’ll send your first Brisa digest to <strong id="success-email">you@example.com</strong> tomorrow morning.</p><div class="preview-strip"><span class="preview-swatch swatch-one"></span><span class="preview-swatch swatch-two"></span><span class="preview-swatch swatch-three"></span><div><strong>8 ideas, picked for you</strong><small>Music · food · culture · outdoors</small></div></div><button class="next-button" type="button" data-action="restart">Back to Brisa</button></section>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <svg class="icon-sprite" aria-hidden="true"><defs><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M14 6l6 6-6 6"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="M20 12H5M10 6l-6 6 6 6"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol></defs></svg>
+    <script src="app.js"></script>
+  </body>
+</html>

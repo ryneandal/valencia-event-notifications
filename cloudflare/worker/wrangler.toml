@@ -1,11 +1,18 @@
 name = "valencia-events-api"
-main = "src/index.js"
-compatibility_date = "2025-01-01"
+main = "src/index.py"
+compatibility_date = "2026-09-04"
+compatibility_flags = ["python_workers", "disable_python_external_sdk"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "valencia-events"
-database_id = "replace-with-real-id"
+database_id = "3f3abe12-81d8-4f97-ba3b-fd736aca0c20"
 
 [vars]
 SESSION_TTL_HOURS = "24"
+MAGIC_LINK_TTL_MINUTES = "15"
+APP_BASE_URL = "https://valencia-event-notifications.pages.dev"
+# Mailgun free sandbox domains can send only to verified Authorized Recipients.
+MAILGUN_DOMAIN = "sandboxe1b1d4545c414b7dbd0d502b92281b01.mailgun.org"
+MAILGUN_REGION = "us"
+EMAIL_FROM = "València Events <postmaster@sandboxe1b1d4545c414b7dbd0d502b92281b01.mailgun.org>"

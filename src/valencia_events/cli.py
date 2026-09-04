@@ -13,6 +13,7 @@ from .personalization import rank_events_for_family
 from .runner import fire_digest_for_user
 from .services import run_scrapers
 from .storage import EventStorage
+from .subscribers import SubscriberLoadError, subscriber_source_from_env
 
 # Get logger
 logger = get_logger(__name__)
@@ -66,22 +67,28 @@ def main(
         return
 
     # 5. Send user-targeted digests when users are available
-    target_users = []
-    if user_email:
-        try:
-            user = storage.get_user_by_email(user_email)
-        except ValueError:
-            logger.error(f"Invalid --user-email value: {user_email}")
-            storage.close()
-            return
-        if user:
-            target_users = [user]
+    try:
+        subscriber_source = subscriber_source_from_env(storage)
+        target_users = []
+        if user_email:
+            try:
+                user = subscriber_source.store.get_user_by_email(user_email)
+            except ValueError:
+                logger.error(f"Invalid --user-email value: {user_email}")
+                storage.close()
+                return
+            if user:
+                target_users = [user]
+            else:
+                logger.warning(f"Requested user not found: {user_email}")
+                storage.close()
+                return
         else:
-            logger.warning(f"Requested user not found: {user_email}")
-            storage.close()
-            return
-    else:
-        target_users = storage.get_active_users()
+            target_users = subscriber_source.store.get_active_users()
+    except SubscriberLoadError as exc:
+        logger.error(f"Unable to load subscribers: {exc}")
+        storage.close()
+        raise typer.Exit(code=1) from exc
 
     if target_users:
         logger.info(f"Sending digest to {len(target_users)} user(s)")
@@ -95,6 +102,13 @@ def main(
                 logger.info(f"Email sent successfully to {user.email}")
             else:
                 logger.warning(f"No email sent for user {user.email}")
+        storage.close()
+        return
+
+    if not subscriber_source.allow_recipient_fallback:
+        logger.info(
+            f"No active subscribers found in {subscriber_source.name}; skipping email"
+        )
         storage.close()
         return
 

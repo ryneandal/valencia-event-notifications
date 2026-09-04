@@ -42,8 +42,22 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-          EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
+          SUBSCRIBER_BACKEND: d1
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          LLM_BACKEND: ${{ vars.LLM_BACKEND }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          MISTRAL_FALLBACK_MODEL: ${{ vars.MISTRAL_FALLBACK_MODEL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
+          OPENROUTER_APP_URL: ${{ vars.OPENROUTER_APP_URL }}
+          OPENROUTER_APP_TITLE: ${{ vars.OPENROUTER_APP_TITLE }}
         run: |
           uv run python -m valencia_events
       

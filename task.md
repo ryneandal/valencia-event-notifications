@@ -1,6 +1,6 @@
 # Project Tasks
 
-Last reconciled with the codebase: 2026-06-10.
+Last reconciled with the codebase and PoC architecture: 2026-09-04.
 
 - [x] **Core Infrastructure**
     - [x] Project scaffolding
@@ -24,17 +24,20 @@ Last reconciled with the codebase: 2026-06-10.
     - [ ] Decide whether item validation lives in the Scrapy pipeline or `source_filters.py`; remove the unused path (`pipelines.py` is currently a stub, output flows through `scrapy -O` JSONL)
 
 - [ ] **User Management** (See [specs/user_management.md](specs/user_management.md))
-    - [x] Web app skeleton (FastAPI, `src/valencia_events/web.py`)
-    - [x] User model, `users`/`user_sessions` tables, onboarding service
-    - [x] Cloudflare Pages frontend + Python Worker API (`cloudflare/`)
-    - [ ] **Decide hosting/DB strategy** (SQLite + GHA artifacts vs Cloudflare D1) — blocks everything below
-    - [ ] Consolidate to a single web stack (FastAPI/SQLite vs Worker/D1 currently run in parallel with diverging schemas)
-    - [ ] Connect the digest pipeline to the production user store (Worker-registered users in D1 are invisible to the nightly digest)
-    - [ ] Real authentication — current login is email-only with no verification. Minimum: email magic-link; spec target: Google Sign-in and/or Passkeys
+    - [x] Select Cloudflare Pages + Python Worker + D1 as the production web stack
+    - [x] Deploy static Pages dashboard, same-origin API proxy, Worker, and D1
+    - [x] Implement and validate the React/Vite personalization onboarding SPA
+    - [ ] Deploy the React/Vite personalization onboarding SPA to production Pages
+    - [x] Implement and test direct D1 subscriber loading for the digest pipeline
+    - [ ] Configure GitHub D1 variables/token and verify a production digest run
+    - [x] Implement and test verified, single-use email magic links
+    - [ ] Configure delivery provider, migrate D1, and deploy magic-link auth
+    - [ ] Add pause/resume subscription controls
+    - [ ] Deprecate the legacy FastAPI/SQLite onboarding path after Cloudflare parity is verified
     - [ ] Write `users_events` rows when digests are sent (table exists but is never populated)
 
 - [ ] **AI Personalization** (See [specs/llm_filtering.md](specs/llm_filtering.md))
-    - [x] LLM integration via LangChain (`src/valencia_events/personalization.py`, Gemini + Mistral backends with fallbacks)
+    - [x] LLM integration via LangChain (`src/valencia_events/personalization.py`, Gemini + Mistral + OpenRouter backends with fallbacks)
     - [x] Prompt engineering for event curation
     - [x] Multi-user digest generation loop (`cli.py`)
     - [ ] Persist LLM relevance scores/reasons to `users_events`
@@ -42,7 +45,8 @@ Last reconciled with the codebase: 2026-06-10.
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
     - [x] Pytest coverage for the Worker (`tests/test_cloudflare_worker.py`)
-    - [ ] Replace `database_id = "replace-with-real-id"` in `wrangler.toml`
+    - [x] Configure the deployed D1 binding in `wrangler.toml`
+    - [x] Add the Pages Function `/api/*` proxy
     - [ ] Add missing Worker tests: login, logout, `/api/health`, inactive-user login
     - [ ] Add wrangler validation (e.g. `wrangler deploy --dry-run`) to CI; rename the `cloudflare-test` CI job (it now only runs frontend vitest)
     - [ ] Align config: wrangler vs Terraform `compatibility_date`; fix Terraform Pages build command (`pages/` is static, has no `package.json`)

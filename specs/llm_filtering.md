@@ -1,22 +1,22 @@
 # Feature Specification: LLM Filtering
 
-## Status (2026-06-10)
+## Status (2026-09-04)
 Mostly implemented, with one architectural difference from the original plan: the integration uses
-**LangChain** (`langchain-google-genai` for Gemini, `langchain-mistralai` for Mistral) instead of the raw
+**LangChain** provider integrations for Gemini, Mistral, and OpenRouter instead of the raw
 `google-generativeai` SDK, and the logic lives in `src/valencia_events/personalization.py` rather than an
 `LLMFilter` class in `filters.py` (`filters.py` holds the deterministic tomorrow-filter and rank/limit
 fallback). Backend selection via `LLM_BACKEND` env var with model fallbacks. The multi-user loop in
 `cli.py` is done. Remaining: persist relevance scores/reasons to `users_events`.
 
 ## Overview
-Use an LLM (Gemini or Mistral) to filter and rank daily events based on a user's natural language preferences.
+Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily events based on a user's natural language preferences.
 
 ## Requirements
 1.  **Input**:
     - Top N events (e.g., 20-50) collected for the day.
     - User's preference string (e.g., "Family of 5...").
 2.  **Process**:
-    - Send event data (JSON) + User Preferences to Gemini API.
+    - Send event data (JSON) + user preferences to the configured LLM provider.
     - Ask LLM to:
         - Select events that match the user's interests.
         - Explain *why* it fits (1-sentence rationale).
@@ -28,7 +28,8 @@ Use an LLM (Gemini or Mistral) to filter and rank daily events based on a user's
     - Iterate through all active users, generating a custom email for each.
 
 ## Technical Architecture
-- **Model**: Gemini or Mistral via LangChain (`langchain-google-genai` / `langchain-mistralai`), with configurable primary and fallback models.
+- **Model**: Gemini, Mistral, or OpenRouter via LangChain (`langchain-google-genai`, `langchain-mistralai`, or `langchain-openrouter`), with configurable primary and fallback models.
+- **Failure behavior**: provider/model failures must use the deterministic rank-and-limit fallback; tests must not call live provider APIs.
 - **Pipeline**:
     1.  `cli.py` fetches tomorrow's events.
     2.  `cli.py` loads active users.
@@ -40,7 +41,7 @@ Use an LLM (Gemini or Mistral) to filter and rank daily events based on a user's
         - Send email.
 
 ## Tasks
-- [x] Add LLM dependencies (LangChain: `langchain-google-genai`, `langchain-mistralai`).
+- [x] Add LLM dependencies (LangChain: `langchain-google-genai`, `langchain-mistralai`, `langchain-openrouter`).
 - [x] Define LLM Prompt Template.
 - [x] Implement ranking logic (`rank_events_for_family` in `src/valencia_events/personalization.py`).
 - [x] Update `src/valencia_events/cli.py` to loop through active users.

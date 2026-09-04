@@ -1,86 +1,101 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { describe, expect, test, vi } from 'vitest';
 
-import { JSDOM } from 'jsdom';
-import { describe, expect, test } from 'vitest';
+import { registerUser, updateUserProfile, verifyMagicLink } from '../pages/src/api.js';
+import {
+  DEFAULT_FORM_STATE,
+  INTEREST_CLUSTERS,
+  buildPersonalizationProfile,
+  hydrateFormState
+} from '../pages/src/profile.js';
 
-import { createDashboardApp } from '../pages/public/app.js';
+describe('personalisation onboarding contract', () => {
+  test('builds the exact profile shape consumed by the Python ranker', () => {
+    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
 
-function loadDom() {
-  const htmlPath = path.join(process.cwd(), 'pages', 'public', 'index.html');
-  const html = fs.readFileSync(htmlPath, 'utf8');
-  const dom = new JSDOM(html);
-  return dom;
-}
-
-async function waitForAsyncUiTick() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-describe('frontend integration', () => {
-  test('register flow updates status and profile output', async () => {
-    const dom = loadDom();
-    const { document } = dom.window;
-
-    const fetchCalls = [];
-    const fetchImpl = async (url, options) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        async json() {
-          return {
-            user: {
-              id: 1,
-              email: 'dashboard@example.com',
-              preferences_blob: '{"audience":"family"}',
-              is_active: true
-            }
-          };
-        }
-      };
-    };
-
-    createDashboardApp({ document, fetchImpl });
-
-    document.getElementById('register-email').value = 'dashboard@example.com';
-    document.getElementById('register-preferences').value = '{"audience":"family"}';
-
-    document.getElementById('register-form').dispatchEvent(
-      new dom.window.Event('submit', { bubbles: true, cancelable: true })
-    );
-
-    await waitForAsyncUiTick();
-
-    expect(fetchCalls).toHaveLength(1);
-    expect(fetchCalls[0].url).toBe('/api/register');
-    expect(fetchCalls[0].options.credentials).toBe('include');
-    expect(document.getElementById('status').textContent).toBe('Registered and signed in.');
-    expect(document.getElementById('profile-output').textContent).toContain(
-      'dashboard@example.com'
-    );
+    expect(Object.keys(profile)).toEqual([
+      'audience',
+      'location_scope',
+      'top_interest_clusters',
+      'strong_positive_signals',
+      'strong_negative_signals',
+      'seasonal_anchors'
+    ]);
+    expect(profile.audience).toBe('family_with_school_age_kids');
+    expect(profile.location_scope).toEqual(['Valencia city']);
+    expect(profile.top_interest_clusters[0]).toEqual({
+      name: 'local_festivals_spectacle',
+      includes: INTEREST_CLUSTERS[0].includes
+    });
+    expect(profile.strong_positive_signals).toContain('near_transit');
+    expect(profile.strong_negative_signals).toContain('starts_after_20');
+    expect(profile.seasonal_anchors[0]).toMatchObject({ name: 'Fallas' });
   });
 
-  test('refresh profile shows unauthorized message when session is missing', async () => {
-    const dom = loadDom();
-    const { document } = dom.window;
+  test('hydrates a saved profile without renaming or dropping selections', () => {
+    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
+    const hydrated = hydrateFormState('family@example.com', JSON.stringify(profile));
 
-    const fetchImpl = async () => ({
-      ok: false,
-      status: 401,
-      async json() {
-        return { error: 'Unauthorized' };
-      }
+    expect(hydrated.email).toBe('family@example.com');
+    expect(hydrated.audience).toBe(DEFAULT_FORM_STATE.audience);
+    expect(hydrated.locations).toEqual(DEFAULT_FORM_STATE.locations);
+    expect(hydrated.interests).toEqual(DEFAULT_FORM_STATE.interests);
+    expect(hydrated.positiveSignals).toEqual(DEFAULT_FORM_STATE.positiveSignals);
+    expect(hydrated.negativeSignals).toEqual(DEFAULT_FORM_STATE.negativeSignals);
+    expect(hydrated.seasonalAnchors).toEqual(DEFAULT_FORM_STATE.seasonalAnchors);
+  });
+
+  test('registers with the profile serialized into preferences_blob', async () => {
+    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, message: 'Check your email to continue' }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await registerUser('family@example.com', profile, fetchImpl);
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [path, options] = fetchImpl.mock.calls[0];
+    expect(path).toBe('/api/register');
+    expect(options.credentials).toBe('include');
+    expect(JSON.parse(options.body)).toEqual({
+      email: 'family@example.com',
+      preferences_blob: JSON.stringify(profile)
     });
+  });
 
-    createDashboardApp({ document, fetchImpl });
+  test('exchanges a magic-link token without putting it in the URL', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ user: { email: 'family@example.com' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
 
-    document
-      .getElementById('me-button')
-      .dispatchEvent(new dom.window.Event('click', { bubbles: true, cancelable: true }));
+    await verifyMagicLink('one-time-token', fetchImpl);
 
-    await waitForAsyncUiTick();
+    const [path, options] = fetchImpl.mock.calls[0];
+    expect(path).toBe('/api/auth/verify');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({ token: 'one-time-token' });
+    expect(options.credentials).toBe('include');
+  });
 
-    expect(document.getElementById('status').textContent).toBe('Unauthorized');
+  test('updates an existing user with the same lossless profile payload', async () => {
+    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ user: { email: 'family@example.com' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await updateUserProfile(profile, fetchImpl);
+
+    const [path, options] = fetchImpl.mock.calls[0];
+    expect(path).toBe('/api/preferences');
+    expect(options.method).toBe('PATCH');
+    expect(JSON.parse(options.body).preferences_blob).toBe(JSON.stringify(profile));
   });
 });

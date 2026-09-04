@@ -24,48 +24,50 @@ The project core is implemented and running:
 - ✅ Scrapy spiders for 8 sources (Visit Valencia, Ajuntament agenda, Palau de la Música, Les Arts, IVAM, València Secreta, Valencia Bonita, generic RSS)
 - ✅ Date parsing and normalization
 - ✅ SQLite storage with deduplication
-- ✅ LLM-based event ranking per user (Gemini or Mistral via LangChain)
+- ✅ LLM-based event ranking per user (Gemini, Mistral, or OpenRouter via LangChain)
 - ✅ Email generation (Jinja2 templates) and sending (SMTP)
 - ✅ Periodic execution via GitHub Actions
-- 🚧 User onboarding: FastAPI API and Cloudflare Pages/Worker dashboard exist in parallel; hosting/DB consolidation and verified authentication are still open (see [specs/user_management.md](specs/user_management.md))
+- ✅ Cloudflare Pages, Python Worker, D1, and the same-origin API proxy are deployed
+- ✅ The scheduled runner can load active D1 subscribers through Cloudflare's authenticated API (production configuration/run pending)
+- 🚧 The tested React personalization SPA and magic-link Worker auth await production deployment/configuration (see [specs/user_management.md](specs/user_management.md))
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
 ## Architecture
 
+```text
+React onboarding on Cloudflare Pages [implemented; deploy pending]
+  -> same-origin Pages Function
+  -> Python Worker
+  -> D1 subscriber/profile store
+
+Scheduled GitHub Actions job
+  -> active D1 subscribers through authenticated D1 HTTP API
+  -> Scrapy -> normalization -> cached SQLite event store
+  -> per-user Gemini/Mistral/OpenRouter ranking
+  -> Jinja2 HTML -> SMTP
 ```
-┌─────────────┐
-│   Scrapers  │  Scrapy spiders collect raw events
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ Normalizer  │  Parse dates, validate data → Event models
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   Storage   │  SQLite with deduplication
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   Mailer    │  Build HTML, send via SMTP
-└─────────────┘
-```
+
+The Cloudflare stack owns interactive user data; the scheduled Python stack owns
+scraping and digest generation. See [specs/architecture.md](specs/architecture.md)
+for deployment state, trust boundaries, and failure behavior.
 
 ## Data Schema
 
-The project uses SQLite (`events.db`) with the following schema:
+The system deliberately separates subscriber and batch-processing state.
+
+Cloudflare D1 is the canonical production store for subscribers:
+
+- **`users`**: Verified email, serialized personalization profile, active/paused
+  status, and creation metadata.
+- **session and verification tables**: Worker-owned authentication state that is
+  never exposed to the digest or an LLM.
+
+The scheduled job uses cached SQLite (`events.db`) for event processing:
 
 - **`events`**: Stores unique events found by scrapers.
   - `event_hash`: Unique identifier (SHA256 of title + date + url).
   - `title`, `start`, `url`, `description`, `source`.
-
-- **`users`**: User profiles for personalization.
-  - `email`: User's email address.
-  - `preferences`: Natural language description of interests (e.g., "hiking, art").
-  - `is_active`: Subscription status.
 
 - **`users_events`**: Join table for personalized recommendations.
   - `user_id`, `event_hash`.
@@ -73,6 +75,12 @@ The project uses SQLite (`events.db`) with the following schema:
   - `relevance_reason`: LLM explanation.
   - `is_sent`: Tracks if the event has been emailed to the user.
   - *Note: the schema exists but the digest pipeline does not yet write to this table.*
+
+Legacy SQLite user/session tables remain during the migration but are not the
+production subscriber source of truth. The scheduled runner's D1 backend reads
+active recipient/profile rows directly from Cloudflare's authenticated D1 API
+and fails closed rather than using a fallback recipient when D1 is unavailable
+or empty.
 
 ## Quick Start
 
@@ -133,18 +141,40 @@ The project uses SQLite (`events.db`) with the following schema:
 
 ## Configuration
 
-The following environment variables are required for the full workflow:
+The email workflow requires:
 
 - `SMTP_USER`: Email account for sending (e.g., Gmail)
 - `SMTP_APP_PASSWORD`: App-specific password for SMTP
-- `RECIPIENT_EMAIL`: Email address to receive digests
-- `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Enable Gemini-based event ranking
-- `MISTRAL_API_KEY`: Enable Mistral-based event ranking
-- `LLM_BACKEND`: Optional override (`gemini` or `mistral`)
-- `FAMILY_PROFILE_JSON`: Optional JSON profile for ranking personalization
-- `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `MISTRAL_MODEL`, `MISTRAL_FALLBACK_MODEL`: Optional model overrides
+- `RECIPIENT_EMAIL`: Fallback recipient only when the explicitly selected
+  subscriber backend is `sqlite`
+- `SUBSCRIBER_BACKEND`: Required explicit choice of `d1` (production) or
+  `sqlite` (local/test)
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_D1_DATABASE_ID`: Required for the D1
+  subscriber backend
+- `CLOUDFLARE_API_TOKEN`: Least-privilege D1 query credential; required for the
+  D1 subscriber backend
 
-For GitHub Actions, these should be set as repository secrets.
+Personalized ranking is optional and falls back to deterministic ranking if it is
+unconfigured or a provider call fails. Configure one provider:
+
+- `LLM_BACKEND`: `gemini`, `mistral`, or `openrouter`
+- `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `MISTRAL_API_KEY`, or
+  `OPENROUTER_API_KEY`: Credential for the selected backend
+- `GEMINI_MODEL` / `GEMINI_FALLBACK_MODEL`, `MISTRAL_MODEL` /
+  `MISTRAL_FALLBACK_MODEL`, or `OPENROUTER_MODEL` /
+  `OPENROUTER_FALLBACK_MODEL`: Optional primary and fallback model overrides
+- `FAMILY_PROFILE_JSON`: Optional JSON profile for ranking personalization
+- `OPENROUTER_APP_URL` and `OPENROUTER_APP_TITLE`: Optional OpenRouter app
+  attribution metadata
+
+OpenRouter model IDs use `provider/model` slugs. Its default is
+`openrouter/auto`; set `OPENROUTER_MODEL` when you need a fixed model, cost, or
+data-policy choice. OpenRouter settings use process environment variables first
+and fall back to `.env` in the current working directory. See `.env.example` for
+complete examples.
+
+For GitHub Actions, store credentials as repository secrets and backend/model
+selection as repository variables. Never commit real keys to `.env` or source files.
 
 ## Development
 
@@ -157,12 +187,24 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 ## Cloudflare Frontend + Worker
 
-A Cloudflare-compatible user dashboard implementation is available under [`cloudflare/`](cloudflare/):
+The deployed interactive stack lives under [`cloudflare/`](cloudflare/):
 
-- `cloudflare/pages/public/`: Static Pages frontend (register/login/preferences UI).
-- `cloudflare/worker/src/`: Python Worker API (`/api/register`, `/api/login`, `/api/me`, `/api/preferences`, `/api/logout`) with D1-compatible schema.
-- `cloudflare/tests/`: Frontend interaction tests for the static dashboard.
-- `tests/test_cloudflare_worker.py`: Pytest coverage for the Worker API behavior.
+- `cloudflare/pages/public/`: currently deployed static dashboard and React/Vite
+  build destination.
+- `cloudflare/pages/src/`: tested React personalization onboarding SPA, pending
+  production deployment.
+- `cloudflare/pages/functions/`: same-origin `/api/*` Worker proxy.
+- `cloudflare/worker/src/`: deployed Python Worker API with canonical D1-backed
+  subscriber/profile/session storage.
+- `cloudflare/design-poc/`: approved Mediterranean/València visual reference.
+- `cloudflare/tests/` and `tests/test_cloudflare_worker.py`: frontend, proxy, and
+  Worker behavior tests.
+
+Email-only authentication remains the deployed development integration path.
+Verified magic-link code is implemented and tested, and its D1 migration is
+applied, but it still needs provider configuration and Worker deployment. The D1 subscriber loader is
+also implemented and tested but needs production credentials and a successful
+scheduled run.
 
 Run Cloudflare tests:
 
@@ -194,6 +236,8 @@ valencia-event-notifications/
 │           ├── pipelines.py
 │           └── settings.py
 ├── scrapy.cfg                # Scrapy configuration
+├── cloudflare/               # Pages SPA, API proxy, Python Worker, D1 schema
+├── specs/                    # Product and architecture contracts
 ├── targets/                  # Local artifacts (HTML/JSON dumps)
 ├── tests/                    # Test suite
 ├── .github/workflows/        # GitHub Actions
