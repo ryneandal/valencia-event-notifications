@@ -61,8 +61,9 @@ authoritative until deliberately revised.
 - [x] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
 - [ ] Port event collection and normalization to Worker-compatible asynchronous
   fetch/parsing; Scrapy and cached SQLite remain local migration references only.
-- [ ] Add D1 event, recommendation, and delivery-history tables with idempotent
-  writes and retention rules.
+- [x] Add D1 event, recommendation, and delivery-history tables with idempotent
+  writes and retention rules. The additive schema was applied to production D1
+  and all four batch tables were verified on 2026-09-04.
 - [ ] Read active subscribers directly from the Worker's D1 binding.
 - [ ] Call OpenRouter from the scheduled Worker, defaulting to
   `nvidia/nemotron-3-ultra-550b-a55b:free`, and validate its JSON response.

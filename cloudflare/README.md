@@ -25,6 +25,7 @@ not a separately deployed application.
 | Git-connected Cloudflare Pages project | Deployed; `main` is production and other branches can receive previews |
 | React personalization onboarding SPA and same-origin API proxy | Deployed from Git-connected `main` |
 | Python Worker with D1 binding | Deployed |
+| D1 event, digest-run, recommendation, and delivery state | Migrated and verified in production |
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Cloudflare Cron digest Worker | Trigger and safe scaffold deployed; collection, ranking, and delivery remain upcoming |

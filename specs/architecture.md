@@ -44,13 +44,14 @@ allowance is not a safe production assumption for this workload.
 - Python Worker service and D1 database.
 - Pages Function that proxies browser `/api/*` requests to the Worker.
 - D1-backed subscriber/profile and cookie-session operations.
+- Production D1 event, digest-run, recommendation, and delivery state with
+  database-enforced event/run/send idempotency.
 - Gemini, Mistral, and OpenRouter ranking backends with deterministic fallback.
 - A verified active production profile containing all six personalization keys.
 
 ### Implemented, pending production activation or final smoke
 
-- A Cloudflare scheduled handler and daily Cron Trigger are deployed; D1
-  event/run/recommendation/delivery storage is implemented pending migration.
+- A Cloudflare scheduled handler and daily Cron Trigger are deployed.
 - Worker-compatible event collectors, per-user ranking, and digest delivery.
 - The React onboarding SPA, repository-root Pages Function, single-use magic-link
   Worker, D1 migration, branded verification email, and Mailgun delivery are live.
