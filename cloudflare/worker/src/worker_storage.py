@@ -4,6 +4,8 @@ from typing import Any
 
 from worker_runtime import to_python
 
+MAX_DELIVERY_ATTEMPTS = 3
+
 
 def event_key(title: str, start_at: str, url: str) -> str:
     """Return the stable identity used to deduplicate a normalized event."""
@@ -219,7 +221,7 @@ async def finish_digest_run(
 
 
 async def claim_delivery(db: Any, digest_run_id: int, user_id: int) -> bool:
-    """Claim a send once, allowing only failed deliveries to be retried."""
+    """Claim a send once, applying bounded backoff to failed deliveries."""
     result = await (
         db.prepare(
             """
@@ -233,9 +235,17 @@ async def claim_delivery(db: Any, digest_run_id: int, user_id: int) -> bool:
               updated_at = CURRENT_TIMESTAMP,
               sent_at = NULL
             WHERE deliveries.status = 'failed'
+              AND deliveries.attempt_count < ?
+              AND datetime(deliveries.updated_at) <= datetime(
+                'now',
+                CASE deliveries.attempt_count
+                  WHEN 1 THEN '-5 minutes'
+                  ELSE '-15 minutes'
+                END
+              )
             """
         )
-        .bind(digest_run_id, user_id)
+        .bind(digest_run_id, user_id, MAX_DELIVERY_ATTEMPTS)
         .run()
     )
     return result_changes(result) == 1

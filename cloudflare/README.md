@@ -148,9 +148,10 @@ consumer only when fan-out or execution limits justify the additional component.
 The forward-only schema keeps normalized `events`, one `digest_runs` row per
 València digest date, per-user ranked `recommendations`, and one `deliveries`
 state row per run/user pair. Event identity is the SHA-256 of normalized title,
-start, and URL. A failed delivery can be claimed again, while a pending or sent
-row cannot be claimed twice; provider message IDs and sanitized failure codes
-are retained without credentials or response bodies.
+start, and URL. A failed delivery can be claimed again after 5 then 15 minutes,
+with a maximum of three attempts; a pending or sent row cannot be claimed twice.
+Provider message IDs and sanitized failure codes are retained without
+credentials or response bodies.
 
 The scheduled cleanup policy is to retain digest, recommendation, and delivery
 history for 90 days. Events unseen for 30 days may be removed only after no

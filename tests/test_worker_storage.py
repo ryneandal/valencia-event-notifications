@@ -189,12 +189,45 @@ def test_failed_delivery_can_be_retried():
         )
         is True
     )
+    assert asyncio.run(storage.claim_delivery(db, run_id, user_id)) is False
+    connection.execute(
+        "UPDATE deliveries SET updated_at = datetime('now', '-6 minutes')"
+    )
+    connection.commit()
     assert asyncio.run(storage.claim_delivery(db, run_id, user_id)) is True
 
     delivery = connection.execute(
         "SELECT status, attempt_count, last_error_code FROM deliveries"
     ).fetchone()
     assert tuple(delivery) == ("pending", 2, None)
+
+
+def test_failed_delivery_backoff_has_a_bounded_attempt_count():
+    connection = database()
+    db = SQLiteD1(connection)
+    user_id, run_id = seed_user_and_run(connection)
+
+    assert asyncio.run(storage.claim_delivery(db, run_id, user_id)) is True
+    for expected_attempt in (2, 3):
+        assert asyncio.run(
+            storage.mark_delivery_failed(db, run_id, user_id, "mailgun_http_503")
+        )
+        connection.execute(
+            "UPDATE deliveries SET updated_at = datetime('now', '-20 minutes')"
+        )
+        connection.commit()
+        assert asyncio.run(storage.claim_delivery(db, run_id, user_id)) is True
+        attempt = connection.execute("SELECT attempt_count FROM deliveries").fetchone()[
+            0
+        ]
+        assert attempt == expected_attempt
+
+    assert asyncio.run(
+        storage.mark_delivery_failed(db, run_id, user_id, "mailgun_http_503")
+    )
+    connection.execute("UPDATE deliveries SET updated_at = datetime('now', '-1 day')")
+    connection.commit()
+    assert asyncio.run(storage.claim_delivery(db, run_id, user_id)) is False
 
 
 def test_successful_delivery_cannot_be_claimed_twice():

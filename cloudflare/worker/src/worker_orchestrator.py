@@ -82,6 +82,8 @@ async def run_digest(
     collected, source_diagnostics = await collector(
         env, datetime.fromisoformat(digest_date).date()
     )
+    for diagnostic in source_diagnostics:
+        log_event("digest.source.completed", correlation_id, **diagnostic)
     await persist_events(db, collected)
     events = await list_events_for_date(db, digest_date)
     subscribers = await list_active_subscribers(db)
@@ -114,6 +116,11 @@ async def run_digest(
             ranking = await ranker(env, subscriber.get("preferences_blob"), events)
             if ranking.used_fallback:
                 summary["fallback_count"] += 1
+                log_event(
+                    "digest.ranking.fallback",
+                    correlation_id,
+                    error_code=ranking.error_code or "no_candidates",
+                )
             if not ranking.events:
                 summary["skipped_count"] += 1
                 continue

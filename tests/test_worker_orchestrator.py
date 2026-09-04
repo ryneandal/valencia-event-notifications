@@ -152,6 +152,11 @@ def test_live_retry_isolates_failure_and_never_resends_success(capsys):
     now = datetime(2026, 9, 4, 8, tzinfo=UTC)
 
     first = asyncio.run(orchestrator.run_digest(runtime_env, now=now, dry_run=False))
+    connection.execute(
+        "UPDATE deliveries SET updated_at = datetime('now', '-6 minutes') "
+        "WHERE status = 'failed'"
+    )
+    connection.commit()
     second = asyncio.run(orchestrator.run_digest(runtime_env, now=now, dry_run=False))
 
     assert (first["sent_count"], first["failure_count"]) == (1, 1)

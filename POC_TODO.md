@@ -75,7 +75,7 @@ authoritative until deliberately revised.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
 - [x] Deploy and validate the Cron-triggered Worker. Production version
-  `0578a191-da7c-4329-97b8-849ebdbc6cad` contains the safe end-to-end pipeline,
+  `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b` contains the safe end-to-end pipeline,
   is healthy, keeps delivery disabled, and is registered with `0 8 * * *` UTC
   as of 2026-09-04.
 
@@ -114,6 +114,8 @@ authoritative until deliberately revised.
 - [x] Implement verified-subscriber delivery with per-user failure isolation; keep
   the production delivery switch off until the controlled smoke.
 - [x] Record delivery/event history sufficiently to avoid duplicate sends.
+- [x] Bound failed delivery retries to three attempts with 5- and 15-minute
+  backoff windows and retain only sanitized failure codes.
 - [x] Add a safe dry-run/manual Worker path that cannot accidentally email everyone.
 - [ ] Run one controlled end-to-end test from onboarding through rendered email.
 
@@ -132,16 +134,16 @@ authoritative until deliberately revised.
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-04): 87 Python tests and 10 frontend tests
+  - [x] Local verification (2026-09-04): 88 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (72.46 KiB upload, 16.75 KiB gzip).
+    Wrangler Worker bundle dry-run pass (73.10 KiB upload, 16.91 KiB gzip).
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
   - [x] Production Worker smoke (2026-09-04): version
-    `0578a191-da7c-4329-97b8-849ebdbc6cad` starts without external tzdata,
+    `14f4e41c-ce4a-4d8d-9ec5-b84585ba726b` starts without external tzdata,
     `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
     Cron delivery remains disabled.
 
