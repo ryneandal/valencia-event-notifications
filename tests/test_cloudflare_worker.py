@@ -20,6 +20,7 @@ worker = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(worker)
 
+import worker_app as worker_app_module  # noqa: E402
 from worker_auth import sha256_hex  # noqa: E402
 from worker_email import (  # noqa: E402
     DeliveryConfigurationError,
@@ -579,6 +580,14 @@ def test_login_sends_link_and_logout_revokes_session():
     asyncio.run(_test_login_sends_link_and_logout_revokes_session())
 
 
+def test_health_route_is_public_and_minimal():
+    response = asyncio.run(
+        worker.handle_request(FakeRequest("https://example.com/api/health"), env())
+    )
+    assert response.status == 200
+    assert json.loads(response.body) == {"ok": True}
+
+
 def test_pending_registration_can_be_retried():
     asyncio.run(_test_pending_registration_can_be_retried())
 
@@ -597,6 +606,56 @@ def test_invalid_inputs_and_session_are_rejected():
 
 def test_subscription_controls_are_authenticated_and_isolated():
     asyncio.run(_test_subscription_controls_are_authenticated_and_isolated())
+
+
+def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch):
+    calls = []
+
+    async def fake_run_digest(runtime_env, **kwargs):
+        calls.append((runtime_env, kwargs))
+        return {
+            "correlation_id": "safe-id",
+            "subscriber_count": 1,
+            "dry_run": True,
+        }
+
+    monkeypatch.setattr(worker_app_module, "run_digest", fake_run_digest)
+
+    async def exercise():
+        runtime_env = env()
+        unauthorized = await worker.handle_request(
+            FakeRequest(
+                "https://example.com/api/digest/dry-run",
+                method="POST",
+                payload={},
+            ),
+            runtime_env,
+        )
+        assert unauthorized.status == 401
+
+        await register(runtime_env)
+        verification = await verify(runtime_env, delivered_token(runtime_env))
+        cookie = cookie_from_set_cookie(verification.headers.get("set-cookie"))
+        response = await worker.handle_request(
+            FakeRequest(
+                "https://example.com/api/digest/dry-run",
+                method="POST",
+                headers={"cookie": cookie},
+                payload={},
+            ),
+            runtime_env,
+        )
+        assert response.status == 200
+        assert await response.json() == {
+            "summary": {
+                "correlation_id": "safe-id",
+                "subscriber_count": 1,
+                "dry_run": True,
+            }
+        }
+        assert calls == [(runtime_env, {"dry_run": True, "target_user_id": 1})]
+
+    asyncio.run(exercise())
 
 
 def test_request_path_ignores_query_and_fragment():
@@ -651,16 +710,26 @@ def test_schema_migration_is_additive_and_idempotent():
 
 def test_scheduled_handler_emits_safe_scaffold_event(capsys):
     controller = SimpleNamespace(cron="0 8 * * *", scheduledTime=1_788_508_800_000)
+    calls = []
 
-    asyncio.run(handle_scheduled(controller, object(), object()))
+    async def fake_run_digest(runtime_env, **kwargs):
+        calls.append((runtime_env, kwargs))
+
+    runtime_env = SimpleNamespace(
+        DIGEST_DELIVERY_ENABLED="false", RUN_DIGEST=fake_run_digest
+    )
+    asyncio.run(handle_scheduled(controller, runtime_env, object()))
 
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
         "cron.expression": "0 8 * * *",
         "cron.scheduled_time_ms": 1_788_508_800_000,
         "event.name": "digest.schedule.triggered",
-        "pipeline.state": "scaffolded",
+        "pipeline.state": "dry_run",
     }
+    assert calls[0][0] is runtime_env
+    assert calls[0][1]["dry_run"] is True
+    assert calls[0][1]["now"].tzinfo is UTC
 
 
 def test_worker_scheduled_entrypoint_delegates(monkeypatch):

@@ -28,7 +28,7 @@ not a separately deployed application.
 | D1 event, digest-run, recommendation, and delivery state | Migrated and verified in production |
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
-| Cloudflare Cron digest Worker | Trigger and safe scaffold deployed; collection, ranking, and delivery remain upcoming |
+| Cloudflare Cron digest Worker | Full safe pipeline implemented; deployed with delivery disabled pending controlled smoke |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
@@ -46,7 +46,7 @@ Browser
   -> Python Worker
   -> D1 (subscriber, profile, session/auth state)
 
-Cloudflare Cron Trigger [deployed scaffold]
+Cloudflare Cron Trigger [deployed; dry-run by default]
   -> scheduled Worker
   -> fetch and normalize events into D1
   -> load active subscriber profiles directly from D1
@@ -73,6 +73,7 @@ Currently deployed Worker routes:
 - `GET /api/me`
 - `PATCH /api/preferences`
 - `PATCH /api/subscription`
+- `POST /api/digest/dry-run`
 
 Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 
@@ -85,7 +86,9 @@ Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
   the session cookie; invalid, expired, or replayed tokens return `401`; and
 - `/api/me`, `/api/preferences`, `/api/subscription`, and `/api/logout` retain
   their authenticated behavior. `PATCH /api/subscription` accepts
-  `{subscribed: boolean}` and preserves the account, session, and profile.
+  `{subscribed: boolean}` and preserves the account, session, and profile; and
+- `POST /api/digest/dry-run` targets the current session user, returns aggregate
+  counts plus a correlation ID, and is structurally unable to call Mailgun.
 
 The Worker auth code, additive D1 migration, email provider configuration, and
 deployment are live.
@@ -106,6 +109,11 @@ deployment are live.
 - `MAGIC_LINK_TTL_MINUTES`: optional token lifetime; defaults to `15`.
 - `MAILGUN_API_KEY`: required Mailgun domain sending key or private API key,
   configured with `wrangler secret put` rather than `[vars]`.
+- `OPENROUTER_MODEL`: optional model override; defaults to
+  `nvidia/nemotron-3-ultra-550b-a55b:free`.
+- `OPENROUTER_API_KEY`: OpenRouter credential, configured only as a Worker secret.
+- `DIGEST_DELIVERY_ENABLED`: fail-closed production switch. Its checked-in value
+  is `false`; set it to `true` only after the controlled end-to-end smoke.
 
 Mailgun sandbox domains can deliver only to verified Authorized Recipients. Add
 and verify the PoC test address in Mailgun before the production smoke test.
@@ -123,8 +131,8 @@ a narrowly scoped `CLOUDFLARE_API_TOKEN` and the appropriate Cloudflare account
 and zone IDs. Never commit `terraform.tfvars`, `.dev.vars`, or real tokens.
 
 The scheduled Worker uses a Cron Trigger and direct D1 binding. Store
-`OPENROUTER_API_KEY` and the digest Mailgun credential as Worker secrets. Its
-default backend/model are `openrouter` and
+`OPENROUTER_API_KEY` and the Mailgun credential as Worker secrets. Its default
+provider/model are OpenRouter and
 `nvidia/nemotron-3-ultra-550b-a55b:free`. Provider/backend/model configuration
 for the local migration reference is documented in the root
 [`README.md`](../README.md) and `.env.example`.
@@ -150,6 +158,16 @@ retained recommendation references them. `delete_expired_history()` performs
 deletion in dependency order; the orchestrator must supply UTC ISO/date cutoffs
 and report only aggregate row counts.
 
+### Event sources
+
+Production collection currently reads the Ajuntament de València embedded
+agenda and the ElPeriodic València RSS feed. Each request identifies Brisa,
+times out after 10 seconds, and runs once per digest date. Adapters are
+fixture-tested without network calls, one source failure does not discard other
+results, and diagnostics record only source names, counts, and sanitized error
+codes. Operators must continue to honor each publisher's robots policy and avoid
+raising the daily request frequency without review.
+
 ## Local development
 
 Install and run the SPA from the repository root:
@@ -164,7 +182,7 @@ Build and test it:
 ```bash
 pnpm --dir cloudflare build
 pnpm --dir cloudflare test
-uv run pytest tests/test_cloudflare_worker.py
+uv run pytest tests/test_cloudflare_worker.py tests/test_worker_*.py
 ```
 
 For a local Worker/D1 session, install or invoke Wrangler, apply the schema to
@@ -216,14 +234,16 @@ code.
 
 Deploying `worker/wrangler.toml` also updates the daily Cron Trigger. Cloudflare
 Cron changes can take several minutes to propagate. Confirm the trigger and its
-first structured `digest.schedule.triggered` log event after deployment.
+first structured `digest.schedule.triggered` log event after deployment. Leave
+`DIGEST_DELIVERY_ENABLED=false` until a controlled authenticated preview and one
+intended-recipient send have passed. The preview button in the signed-in account
+screen exercises the safe path.
 
-Before deploying the magic-link implementation, configure `APP_BASE_URL`,
-`MAILGUN_DOMAIN`, `MAILGUN_REGION`, and `EMAIL_FROM`, then store
-`MAILGUN_API_KEY` as a Worker secret. The additive `magic_links` migration shown
-above is already applied in production.
-Deploying the Worker without a real delivery provider does not produce a usable
-public sign-in flow.
+The magic-link implementation is already deployed with `APP_BASE_URL`,
+`MAILGUN_DOMAIN`, `MAILGUN_REGION`, `EMAIL_FROM`, and the encrypted
+`MAILGUN_API_KEY`. The additive `magic_links` migration shown above is already
+applied in production. Public registration beyond authorized Mailgun sandbox
+recipients still requires a verified custom sending domain.
 
 ## Rollback
 

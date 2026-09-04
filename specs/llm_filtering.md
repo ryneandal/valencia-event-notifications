@@ -1,12 +1,11 @@
 # Feature Specification: LLM Filtering
 
 ## Status (2026-09-04)
-Mostly implemented, with one architectural difference from the original plan: the integration uses
-**LangChain** provider integrations for Gemini, Mistral, and OpenRouter instead of the raw
-`google-generativeai` SDK, and the logic lives in `src/valencia_events/personalization.py` rather than an
-`LLMFilter` class in `filters.py` (`filters.py` holds the deterministic tomorrow-filter and rank/limit
-fallback). Backend selection via `LLM_BACKEND` env var with model fallbacks. The multi-user loop in
-`cli.py` is done. Remaining: persist relevance scores/reasons to `users_events`.
+The production Cloudflare Worker directly calls OpenRouter and defaults to
+`nvidia/nemotron-3-ultra-550b-a55b:free`. It schema-validates the response,
+falls back deterministically, and stores ordered recommendations and reasons in
+D1. The local reference pipeline still supports Gemini, Mistral, and OpenRouter
+through LangChain in `src/valencia_events/personalization.py`.
 
 ## Overview
 Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily events based on a user's natural language preferences.
@@ -28,14 +27,13 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
     - Iterate through all active D1 users, generating a custom email for each.
 
 ## Technical Architecture
-- **Model**: OpenRouter by default using `nvidia/nemotron-3-ultra-550b-a55b:free`,
-  with Gemini and Mistral available as explicit alternatives via LangChain
-  (`langchain-openrouter`, `langchain-google-genai`, or
-  `langchain-mistralai`). Primary and fallback models remain configurable.
+- **Production model**: OpenRouter by default using
+  `nvidia/nemotron-3-ultra-550b-a55b:free`; `OPENROUTER_MODEL` can override it.
+- **Local reference models**: Gemini, Mistral, and OpenRouter through LangChain.
 - **Failure behavior**: provider/model failures must use the deterministic rank-and-limit fallback; tests must not call live provider APIs.
 - **Pipeline**:
-    1.  `cli.py` fetches tomorrow's events.
-    2.  `cli.py` loads active users.
+    1.  The scheduled Worker fetches tomorrow's events once.
+    2.  It loads verified, subscribed D1 users through its direct binding.
     3.  For each user:
         - Construct prompt: `System: You are an event curator. User: {prefs}. Events: {events_json}. Task: Pick top 5...`
         - Call API.
@@ -49,5 +47,8 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
 - [x] Implement ranking logic (`rank_events_for_family` in `src/valencia_events/personalization.py`).
 - [x] Update `src/valencia_events/cli.py` to loop through active users as migration
   reference behavior.
-- [ ] Port ranking orchestration to the scheduled Cloudflare Worker.
-- [ ] Persist `relevance_score` / `relevance_reason` to the `users_events` table.
+- [x] Port ranking orchestration to the scheduled Cloudflare Worker.
+- [x] Persist ordered reasons, model ID, and fallback state to D1
+  `recommendations` rows.
+- [ ] Configure the production `OPENROUTER_API_KEY` Worker secret and complete
+  one controlled live smoke before enabling digest delivery.

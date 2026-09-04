@@ -49,6 +49,23 @@ async def list_active_subscribers(db: Any) -> list[dict[str, Any]]:
     return result_rows(result)
 
 
+async def list_events_for_date(db: Any, digest_date: str) -> list[dict[str, Any]]:
+    """Return normalized events whose local ISO timestamp starts on a date."""
+    result = await (
+        db.prepare(
+            """
+            SELECT id, event_key, title, start_at, url, description, source
+            FROM events
+            WHERE substr(start_at, 1, 10) = ?
+            ORDER BY start_at, title, event_key
+            """
+        )
+        .bind(digest_date)
+        .all()
+    )
+    return result_rows(result)
+
+
 async def upsert_event(
     db: Any,
     *,
@@ -147,6 +164,55 @@ async def record_recommendation(
             relevance_reason,
             model_id,
             int(used_fallback),
+        )
+        .run()
+    )
+
+
+async def clear_recommendations(db: Any, digest_run_id: int, user_id: int) -> None:
+    """Clear a user's provisional ranking before replacing it on a retry."""
+    await (
+        db.prepare(
+            "DELETE FROM recommendations WHERE digest_run_id = ? AND user_id = ?"
+        )
+        .bind(digest_run_id, user_id)
+        .run()
+    )
+
+
+async def finish_digest_run(
+    db: Any,
+    digest_run_id: int,
+    *,
+    status: str,
+    event_count: int,
+    subscriber_count: int,
+    sent_count: int,
+    failure_count: int,
+) -> None:
+    """Record aggregate completion state without subscriber data."""
+    if status not in {"completed", "partial", "failed"}:
+        raise ValueError("invalid digest run status")
+    await (
+        db.prepare(
+            """
+            UPDATE digest_runs
+            SET status = ?,
+                event_count = ?,
+                subscriber_count = ?,
+                sent_count = ?,
+                failure_count = ?,
+                completed_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """
+        )
+        .bind(
+            status,
+            event_count,
+            subscriber_count,
+            sent_count,
+            failure_count,
+            digest_run_id,
         )
         .run()
     )
@@ -279,4 +345,21 @@ async def delete_expired_history(
         "recommendations": result_changes(recommendations),
         "digest_runs": result_changes(runs),
         "events": result_changes(events),
+    }
+
+
+async def delete_expired_auth(db: Any) -> dict[str, int]:
+    """Remove expired auth records without touching active accounts."""
+    sessions = await db.prepare(
+        "DELETE FROM sessions WHERE expires_at <= CURRENT_TIMESTAMP"
+    ).run()
+    magic_links = await db.prepare(
+        """
+        DELETE FROM magic_links
+        WHERE expires_at <= CURRENT_TIMESTAMP OR consumed_at IS NOT NULL
+        """
+    ).run()
+    return {
+        "sessions": result_changes(sessions),
+        "magic_links": result_changes(magic_links),
     }

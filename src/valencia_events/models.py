@@ -44,15 +44,3 @@ class User(BaseModel):
     preferences: str | None = None
     is_active: bool = True
     created_at: datetime
-
-
-class LoginSession(BaseModel):
-    """Session created after a successful login.
-
-    Attributes:
-        session_token: Plaintext bearer token.
-        user: Authenticated user.
-    """
-
-    session_token: str
-    user: User

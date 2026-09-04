@@ -16,6 +16,7 @@ from worker_auth import (
 )
 from worker_email import DeliveryConfigurationError, deliver_magic_link
 from worker_http import AppResponse, json_response
+from worker_orchestrator import run_digest
 from worker_runtime import (
     env_value,
     header_get,
@@ -308,5 +309,19 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         )
         user["is_subscribed"] = subscribed
         return json_response({"user": user_payload(user)})
+
+    if path == "/api/digest/dry-run" and method == "POST":
+        user = await resolve_session_user(env, request)
+        if not user:
+            return json_response({"error": "Unauthorized"}, 401)
+        try:
+            summary = await run_digest(
+                env,
+                dry_run=True,
+                target_user_id=int(user["id"]),
+            )
+        except Exception:
+            return json_response({"error": "Unable to run digest preview"}, 502)
+        return json_response({"summary": summary})
 
     return json_response({"error": "Not found"}, 404)

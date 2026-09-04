@@ -38,7 +38,7 @@ jobs:
         run: |
           uv run pytest -v --tb=short
 
-  cloudflare-test:
+  cloudflare-frontend-and-worker:
     runs-on: ubuntu-latest
 
     defaults:
@@ -67,3 +67,7 @@ jobs:
       - name: Run Cloudflare integration tests
         run: |
           pnpm test
+
+      - name: Validate Worker bundle
+        run: |
+          pnpm dlx wrangler deploy --dry-run --config worker/wrangler.toml

@@ -6,9 +6,10 @@ Receive email notifications about events happening in València, Spain every day
 
 This project collects event information from sources around València and sends a
 personalized next-day digest. The deployed registration platform uses Cloudflare
-Pages, Workers, D1, and Mailgun. The existing Scrapy/SQLite/SMTP command remains
-the local reference implementation while the digest runtime moves to a
-Cron-triggered Cloudflare Worker.
+Pages, Workers, D1, and Mailgun. The Cloudflare Worker now contains the scheduled
+collection, ranking, rendering, and idempotency path; delivery remains disabled
+by default while the final controlled production smoke is completed. The
+existing Scrapy/SQLite/SMTP command is local reference tooling only.
 
 ## Features
 
@@ -16,7 +17,7 @@ Cron-triggered Cloudflare Worker.
 - 📅 **Daily Digest**: Automated emails with tomorrow's events
 - 🔄 **Deduplication**: Hash-based event deduplication in SQLite
 - 🌍 **Timezone Aware**: Proper handling of Europe/Madrid timezone
-- ☁️ **Cloudflare-native target**: Pages, Workers, D1, Cron Triggers, and Mailgun
+- ☁️ **Cloudflare-native production**: Pages, Workers, D1, Cron Triggers, and Mailgun
 - ✅ **Type Safe**: Pydantic models with full type hints
 
 ## Project Status
@@ -33,8 +34,10 @@ The project core is implemented and running:
 - ✅ Cloudflare Pages, Python Worker, D1, and the same-origin API proxy are deployed
 - ✅ React personalization, verified magic links, and branded Mailgun delivery are live
 - ✅ A verified production profile with the complete personalization shape is stored in D1
-- 🚧 Event collection, OpenRouter ranking, digest history, and delivery still need
-  migration to a Cron-triggered Cloudflare Worker
+- ✅ Worker-native event collection, OpenRouter ranking with deterministic
+  fallback, branded digest rendering, D1 history, and safe authenticated preview
+- 🚧 Production OpenRouter secret, Worker runtime/CPU confirmation, custom
+  Mailgun domain, and one controlled live digest remain before delivery cutover
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
@@ -46,7 +49,7 @@ React onboarding on Cloudflare Pages [deployed]
   -> Python Worker
   -> D1 subscriber/profile store
 
-Cloudflare Cron Trigger [upcoming]
+Cloudflare Cron Trigger [deployed; delivery disabled by default]
   -> scheduled Worker -> event-source fetch/normalization
   -> D1 events, active subscribers, and delivery history
   -> OpenRouter ranking (Nemotron default)
@@ -77,16 +80,9 @@ The local reference command uses SQLite (`events.db`) for event processing:
   - `event_hash`: Unique identifier (SHA256 of title + date + url).
   - `title`, `start`, `url`, `description`, `source`.
 
-- **`users_events`**: Join table for personalized recommendations.
-  - `user_id`, `event_hash`.
-  - `relevance_score`: LLM-assigned relevance.
-  - `relevance_reason`: LLM explanation.
-  - `is_sent`: Tracks if the event has been emailed to the user.
-  - *Note: the schema exists but the digest pipeline does not yet write to this table.*
-
-The scheduled Cloudflare Worker will move event, recommendation, and delivery
-history into D1. Legacy SQLite user/session tables remain local-only and are not
-the production subscriber source of truth.
+The scheduled Cloudflare Worker stores event, recommendation, run, and delivery
+history in D1. Retained SQLite users exist only to exercise the local CLI; local
+sessions and the unused local recommendation join table have been removed.
 
 ## Quick Start
 
@@ -147,18 +143,11 @@ the production subscriber source of truth.
 
 ## Configuration
 
-The local reference email workflow requires:
+The local reference email workflow can use:
 
 - `SMTP_USER`: Email account for sending (e.g., Gmail)
 - `SMTP_APP_PASSWORD`: App-specific password for SMTP
-- `RECIPIENT_EMAIL`: Fallback recipient only when the explicitly selected
-  subscriber backend is `sqlite`
-- `SUBSCRIBER_BACKEND`: Required explicit choice of `d1` (production) or
-  `sqlite` (local/test)
-- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_D1_DATABASE_ID`: Required for the D1
-  subscriber backend
-- `CLOUDFLARE_API_TOKEN`: Least-privilege D1 query credential; required for the
-  D1 subscriber backend
+- `RECIPIENT_EMAIL`: Optional local fallback recipient
 
 Personalized ranking is optional and falls back to deterministic ranking if it is
 unconfigured or a provider call fails. Configure one provider:
@@ -179,9 +168,11 @@ model, cost, or data-policy choice. OpenRouter settings use process environment
 variables first and fall back to `.env` in the current working directory. See
 `.env.example` for complete examples.
 
-The production scheduled Worker will receive OpenRouter and Mailgun credentials
-as Cloudflare Worker secrets. The old GitHub Actions digest workflow has been
-removed. Never commit real keys to `.env` or source files.
+The production scheduled Worker reads OpenRouter and Mailgun credentials only
+from Cloudflare Worker secrets. `DIGEST_DELIVERY_ENABLED` remains `false` until
+the controlled smoke succeeds; scheduled runs collect, rank (or fall back),
+persist, and render without sending. The old GitHub Actions digest workflow has
+been removed. Never commit real keys to `.env` or source files.
 
 ## Development
 
@@ -206,9 +197,10 @@ The deployed interactive stack lives under [`cloudflare/`](cloudflare/):
 - `cloudflare/tests/` and `tests/test_cloudflare_worker.py`: frontend, proxy, and
   Worker behavior tests.
 
-Verified magic-link authentication, the D1 migration, and branded Mailgun
-delivery are deployed. The remaining backend milestone is the Cloudflare-native
-scheduled digest Worker.
+Verified magic-link authentication and the Cloudflare-native scheduled digest
+pipeline are implemented. The account screen can run an authenticated preview
+for only the current subscriber, and the scheduled trigger is fail-closed in
+dry-run mode until production delivery is explicitly enabled.
 
 Run Cloudflare tests:
 

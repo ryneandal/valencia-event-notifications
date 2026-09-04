@@ -77,6 +77,10 @@ export function updateSubscription(subscribed, fetchImpl = fetch) {
   );
 }
 
+export function runDigestPreview(fetchImpl = fetch) {
+  return apiFetch('/api/digest/dry-run', { method: 'POST' }, fetchImpl);
+}
+
 export function logoutUser(fetchImpl = fetch) {
   return apiFetch('/api/logout', { method: 'POST' }, fetchImpl);
 }

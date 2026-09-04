@@ -4,9 +4,8 @@ Handles database creation, event storage, and deduplication.
 """
 
 import hashlib
-import secrets
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from valencia_events.normalize import VALENCIA_TZ
@@ -93,31 +92,8 @@ class EventStorage:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
 
-                CREATE TABLE IF NOT EXISTS users_events (
-                    user_id INTEGER NOT NULL,
-                    event_hash TEXT NOT NULL,
-                    is_sent BOOLEAN DEFAULT 0,
-                    relevance_score FLOAT,
-                    relevance_reason TEXT,
-                    PRIMARY KEY (user_id, event_hash),
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    FOREIGN KEY (event_hash) REFERENCES events(event_hash)
-                );
-
-                CREATE TABLE IF NOT EXISTS user_sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    token_hash TEXT UNIQUE NOT NULL,
-                    expires_at TIMESTAMP NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                );
-
                 CREATE INDEX IF NOT EXISTS idx_users_is_active
                 ON users (is_active);
-
-                CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id
-                ON user_sessions (user_id);
             """)
 
     @staticmethod
@@ -137,18 +113,6 @@ class EventStorage:
         if not normalized or "@" not in normalized:
             raise ValueError("Invalid email address")
         return normalized
-
-    @staticmethod
-    def _token_hash(token: str) -> str:
-        """Return a stable SHA-256 hash for a session token.
-
-        Args:
-            token: Plaintext session token.
-
-        Returns:
-            Hex-encoded SHA-256 digest.
-        """
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _row_to_user(row: tuple) -> User:
@@ -305,96 +269,6 @@ class EventStorage:
         if updated is None:
             raise RuntimeError("Failed to load updated user")
         return updated
-
-    def create_user_session(self, user_id: int, *, ttl_hours: int = 24) -> str:
-        """Create a login session and return a plaintext bearer token.
-
-        Args:
-            user_id: Numeric user identifier.
-            ttl_hours: Session lifetime in hours.
-
-        Returns:
-            Plaintext bearer token for the new session.
-        """
-        token = secrets.token_urlsafe(32)
-        token_hash = self._token_hash(token)
-        expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
-
-        with self._get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO user_sessions (user_id, token_hash, expires_at)
-                VALUES (?, ?, ?)
-                """,
-                (user_id, token_hash, expires_at),
-            )
-        return token
-
-    def get_user_by_session_token(self, session_token: str) -> User | None:
-        """Resolve a bearer token to the current user.
-
-        Args:
-            session_token: Plaintext bearer token.
-
-        Returns:
-            Matching active user, or ``None`` if invalid or expired.
-        """
-        token_hash = self._token_hash(session_token)
-        with self._get_connection() as conn:
-            row = conn.execute(
-                """
-                SELECT
-                    u.id,
-                    u.email,
-                    u.preferences,
-                    u.is_active,
-                    u.created_at,
-                    s.expires_at
-                FROM user_sessions AS s
-                INNER JOIN users AS u ON u.id = s.user_id
-                WHERE s.token_hash = ?
-                """,
-                (token_hash,),
-            ).fetchone()
-
-        if row is None:
-            return None
-
-        user_row = row[:-1]
-        expires_at = row[-1]
-        if isinstance(expires_at, str):
-            expires_at = datetime.fromisoformat(expires_at)
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-
-        if expires_at <= datetime.now(UTC):
-            self.revoke_user_session(session_token)
-            return None
-
-        user = self._row_to_user(user_row)
-        if not user.is_active:
-            return None
-        return user
-
-    def revoke_user_session(self, session_token: str) -> bool:
-        """Invalidate an existing session token.
-
-        Args:
-            session_token: Plaintext bearer token.
-
-        Returns:
-            ``True`` if a session row was deleted.
-        """
-        token_hash = self._token_hash(session_token)
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                """
-                DELETE FROM user_sessions
-                WHERE token_hash = ?
-                """,
-                (token_hash,),
-            )
-            return cursor.rowcount > 0
 
     def store_event(self, event: Event) -> bool:
         """Store an event in the database.

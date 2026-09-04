@@ -10,12 +10,12 @@ and Mailgun sandbox delivery are also deployed.
 The complete registration, magic-link, session, and profile round-trip is live.
 Production D1 contains a verified active profile with all six authoritative
 personalization keys. Authenticated pause/resume controls are live and preserve
-the saved profile. The remaining product work is the Cloudflare-native
-scheduled digest runtime.
+the saved profile. The Cloudflare-native digest runtime and a safe, per-user
+preview are implemented; production delivery remains disabled pending the final
+controlled smoke.
 
-The older FastAPI/SQLite onboarding implementation under `src/valencia_events/`
-is retained for now, but it is not the production web architecture. New web
-features should target Pages, the Worker, and D1.
+The older FastAPI/SQLite onboarding implementation and D1 HTTP subscriber bridge
+have been removed. New web features target Pages, the Worker, and D1.
 
 See [architecture.md](architecture.md) for component ownership and the full
 data flow.
@@ -35,7 +35,8 @@ The onboarding application lets a person:
 
 Completing onboarding stores the profile in D1. It does not run scrapers or an
 LLM request synchronously in the browser. A Cron-triggered Cloudflare Worker
-will perform that work and send the resulting HTML digest by email.
+performs that work and, after delivery is explicitly enabled, sends the
+resulting HTML digest by email.
 
 ## Personalization profile contract
 
@@ -117,14 +118,13 @@ D1 is canonical for:
 - verified-account state in `users.is_active`;
 - reversible delivery state in `subscriptions.is_subscribed`;
 - sessions; and
-- magic-link verification records once implemented.
+- magic-link verification records.
 
 ### D1: scheduled event processing
 
-The scheduled Cloudflare Worker will store normalized events, deduplication
-state, recommendations, and delivery history in D1. The existing SQLite and D1
-HTTP subscriber-loader implementations remain local migration references, not
-production runtime components.
+The scheduled Cloudflare Worker stores normalized events, deduplication state,
+recommendations, and delivery history in D1. Retained SQLite event processing is
+local reference tooling only and cannot read production subscribers.
 
 ## API boundary
 
@@ -144,7 +144,10 @@ The deployed Worker contract is:
   token; and
 - `/api/me`, `/api/preferences`, and `/api/logout` retain their existing
   authenticated behavior; and
-- authenticated `PATCH /api/subscription` accepts `{subscribed: boolean}`.
+- authenticated `PATCH /api/subscription` accepts `{subscribed: boolean}`; and
+- authenticated `POST /api/digest/dry-run` runs tomorrow's collection, ranking,
+  persistence, and rendering for only the current subscriber and never calls
+  Mailgun.
 
 Pausing is the PoC's unsubscribe behavior: it excludes the address from digest
 selection but preserves the verified account, session, and personalization
@@ -153,10 +156,10 @@ account/profile deletion is outside the PoC and must be designed separately.
 
 ## Privacy and LLM boundary
 
-The scheduled Cloudflare Worker may send event details and the personalization profile to the
-configured Gemini, Mistral, or OpenRouter model. It must not send the subscriber
-email, session data, magic-link data, Cloudflare credentials, or SMTP
-credentials. Provider calls fall back to deterministic ranking when unavailable.
+The scheduled Cloudflare Worker may send event details and the six
+personalization fields to OpenRouter. It must not send the subscriber email,
+user ID, session data, magic-link data, or Cloudflare/Mailgun credentials.
+Provider calls fall back to deterministic ranking when unavailable.
 
 ## PoC acceptance criteria
 
@@ -181,9 +184,16 @@ credentials. Provider calls fall back to deterministic ranking when unavailable.
 - [x] Implement and test verified magic-link authentication.
 - [x] Configure email delivery, migrate production D1, and deploy magic-link auth.
 - [x] Verify the live profile round-trip and exact D1 personalization shape.
-- [ ] Implement and deploy the Cron-triggered Cloudflare digest Worker.
+- [x] Implement the Cron-triggered Cloudflare digest Worker and safe dry-run.
+- [ ] Configure its production OpenRouter secret and complete a controlled send
+  before setting `DIGEST_DELIVERY_ENABLED=true`.
 - [x] Retire the GitHub Actions digest schedule during Cloudflare migration.
 - [x] Add pause/resume subscription controls.
-- [ ] Record per-user send/relevance history after a digest succeeds.
-- [ ] Remove or clearly deprecate the legacy FastAPI onboarding surface after
-  production parity is verified.
+- [x] Record per-user recommendation/send history with idempotent delivery claims.
+- [x] Remove the legacy FastAPI onboarding surface and D1 HTTP subscriber bridge.
+
+## Post-PoC
+
+- [ ] RYN-130: suggest optional related onboarding tags through a privacy-bounded
+  Worker/LLM call while keeping deterministic tags and the six-field profile
+  contract intact.

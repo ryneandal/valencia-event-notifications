@@ -5,6 +5,7 @@ import {
   logoutUser,
   registerUser,
   resumeUser,
+  runDigestPreview,
   updateSubscription,
   updateUserProfile,
   verifyMagicLink
@@ -131,6 +132,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [completion, setCompletion] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const profile = useMemo(() => buildPersonalizationProfile(form), [form]);
   const current = STEPS[step];
@@ -273,6 +275,26 @@ export default function App() {
     }
   };
 
+  const previewDigest = async () => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    setPreview(null);
+    try {
+      const { summary } = await runDigestPreview();
+      setPreview(summary);
+      setNotice(
+        summary.event_count
+          ? `Preview ready: ${summary.event_count} event${summary.event_count === 1 ? '' : 's'} found for tomorrow. No email was sent.`
+          : 'Preview completed safely, but the current sources did not find an event for tomorrow. No email was sent.'
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (completion) {
     const awaitingVerification = completion.kind === 'link-sent';
     const justVerified = completion.kind === 'verified';
@@ -325,8 +347,14 @@ export default function App() {
                 {busy ? 'Updating…' : subscribed ? 'Pause email digest' : 'Resume email digest'}
               </button>
             ) : null}
+            {currentUser && subscribed ? (
+              <button className="back-button" disabled={busy} onClick={previewDigest} type="button">
+                {busy ? 'Preparing…' : 'Preview tomorrow safely'}
+              </button>
+            ) : null}
             {currentUser ? <button className="text-button" disabled={busy} onClick={signOut} type="button">Sign out</button> : null}
           </div>
+          {preview ? <p className="subscription-note">Preview reference: {preview.correlation_id}. Rendered {preview.rendered_count} private preview; sent {preview.sent_count} emails.</p> : null}
           {currentUser ? <p className="subscription-note">Pausing unsubscribes this address from delivery without deleting its saved profile or signing you out.</p> : null}
         </section>
       </main>

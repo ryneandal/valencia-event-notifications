@@ -23,7 +23,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-04.
     - [x] `valenciabonita_spider.py`
     - [ ] `sala_russafa_spider.py` (fixture `tests/fixtures/salarussafa.html` already exists)
     - [ ] Decide whether item validation lives in the Scrapy pipeline or `source_filters.py`; remove the unused path (`pipelines.py` is currently a stub, output flows through `scrapy -O` JSONL)
-    - [ ] Port the retained sources to Worker-compatible asynchronous collectors
+    - [x] Port the retained sources to Worker-compatible asynchronous collectors
       for the Cloudflare production runtime
 
 - [ ] **User Management** (See [specs/user_management.md](specs/user_management.md))
@@ -35,8 +35,8 @@ Last reconciled with the codebase and PoC architecture: 2026-09-04.
     - [x] Implement and test verified, single-use email magic links
     - [x] Configure Mailgun delivery, migrate D1, and deploy magic-link auth
     - [x] Add pause/resume subscription controls
-    - [ ] Deprecate the legacy FastAPI/SQLite onboarding path after Cloudflare parity is verified
-    - [ ] Write `users_events` rows when digests are sent (table exists but is never populated)
+    - [x] Remove the legacy FastAPI onboarding path and D1 HTTP subscriber bridge;
+      retained SQLite tools are local-only
 
 - [ ] **AI Personalization** (See [specs/llm_filtering.md](specs/llm_filtering.md))
     - [x] LLM integration via LangChain (`src/valencia_events/personalization.py`,
@@ -44,22 +44,32 @@ Last reconciled with the codebase and PoC architecture: 2026-09-04.
       Gemini and Mistral as explicit alternatives)
     - [x] Prompt engineering for event curation
     - [x] Multi-user digest generation loop (`cli.py`)
-    - [ ] Persist LLM relevance scores/reasons to `users_events`
+    - [x] Persist selected order, relevance reasons, model ID, and fallback state
+      to D1 `recommendations`
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
     - [x] Pytest coverage for the Worker (`tests/test_cloudflare_worker.py`)
     - [x] Configure the deployed D1 binding in `wrangler.toml`
     - [x] Add the Pages Function `/api/*` proxy
-    - [ ] Add and deploy a `scheduled()` handler with a daily Cron Trigger
-    - [ ] Add D1 event/recommendation/delivery history and idempotency
-    - [ ] Call OpenRouter and Mailgun from the scheduled Worker
-    - [ ] Add a safe authenticated dry-run path and per-user failure isolation
+    - [x] Add and deploy a `scheduled()` handler with a daily Cron Trigger
+    - [x] Add D1 event/recommendation/delivery history and idempotency
+    - [x] Implement OpenRouter ranking and Mailgun digest delivery in the Worker;
+      production sending remains disabled pending the controlled smoke
+    - [x] Add a safe authenticated dry-run path and per-user failure isolation
     - [x] Disable and remove the legacy GitHub Actions digest schedule
     - [ ] Add missing Worker tests: login, logout, `/api/health`, inactive-user login
-    - [ ] Add wrangler validation (e.g. `wrangler deploy --dry-run`) to CI; rename the `cloudflare-test` CI job (it now only runs frontend vitest)
+    - [x] Add `wrangler deploy --dry-run` validation to CI and rename the
+      Cloudflare job for frontend + Worker scope
     - [ ] Align config: wrangler vs Terraform `compatibility_date`; fix Terraform Pages build command (`pages/` is static, has no `package.json`)
 
 - [ ] **Testing**
     - [ ] Add more unit tests for corner cases in normalization
     - [ ] Add integration tests for the full pipeline (scrape → normalize → store → digest)
+
+- [ ] **Post-PoC enhancements**
+    - [ ] [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): generate privacy-bounded,
+      schema-validated related interest/signal tags through the configured LLM
+      and display them as optional accessible chips during registration/editing;
+      retain deterministic tags and the exact six-field profile contract as the
+      fallback

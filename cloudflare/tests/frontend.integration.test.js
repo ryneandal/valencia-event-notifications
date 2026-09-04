@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import {
   registerUser,
+  runDigestPreview,
   updateSubscription,
   updateUserProfile,
   verifyMagicLink
@@ -126,4 +127,29 @@ describe('personalisation onboarding contract', () => {
       expect(payload.user.is_subscribed).toBe(subscribed);
     }
   );
+
+  test('runs an authenticated digest preview that defaults to no delivery', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          summary: {
+            correlation_id: 'safe-reference',
+            dry_run: true,
+            event_count: 2,
+            rendered_count: 1,
+            sent_count: 0
+          }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    );
+
+    const payload = await runDigestPreview(fetchImpl);
+
+    const [path, options] = fetchImpl.mock.calls[0];
+    expect(path).toBe('/api/digest/dry-run');
+    expect(options.method).toBe('POST');
+    expect(options.credentials).toBe('include');
+    expect(payload.summary).toMatchObject({ dry_run: true, sent_count: 0 });
+  });
 });

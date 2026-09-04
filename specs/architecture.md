@@ -19,7 +19,7 @@ Browser
 
 Scheduled digest plane
 ======================
-Cloudflare Cron Trigger [deployed scaffold]
+Cloudflare Cron Trigger [deployed; dry-run by default]
   -> scheduled handler on the existing Python Cloudflare Worker
   -> fetch and normalize event sources
   -> D1 event and delivery history
@@ -52,7 +52,11 @@ allowance is not a safe production assumption for this workload.
 ### Implemented, pending production activation or final smoke
 
 - A Cloudflare scheduled handler and daily Cron Trigger are deployed.
-- Worker-compatible event collectors, per-user ranking, and digest delivery.
+- Worker-compatible City agenda and ElPeriodic collectors, per-user OpenRouter
+  ranking, deterministic fallback, branded digest rendering, delivery claims,
+  retention cleanup, and authenticated per-user preview are implemented.
+- `DIGEST_DELIVERY_ENABLED=false` keeps Cron runs in dry-run mode until the
+  production OpenRouter secret, runtime plan, and controlled send are verified.
 - The React onboarding SPA, repository-root Pages Function, single-use magic-link
   Worker, D1 migration, branded verification email, and Mailgun delivery are live.
 
@@ -60,9 +64,8 @@ allowance is not a safe production assumption for this workload.
 
 - Permanent account/profile deletion and the complete lifecycle beyond the PoC's
   reversible pause/resume control.
-- Per-user event recommendation/send history.
-- Removal or explicit deprecation of the legacy FastAPI/SQLite onboarding path.
-- Operational alerts, retention policy, and recovery exercises.
+- Dynamic LLM-generated onboarding tag suggestions (post-PoC, RYN-130).
+- Operational alerts and recovery exercises.
 
 ## Sources of truth
 
@@ -74,13 +77,13 @@ allowance is not a safe production assumption for this workload.
 | Sessions and email verification | D1 | Private to the Worker; never exported to the batch job |
 | Scraped events and deduplication state | D1 `events` | SQLite remains local migration/reference state only |
 | Recommendation and send history | D1 `digest_runs`, `recommendations`, `deliveries` | One run per digest date and one claimable delivery state per run/user pair |
-| Ranking behavior and provider fallback | Scheduled Worker; Python implementation is the migration reference | OpenRouter/Nemotron by default, then deterministic fallback |
+| Ranking behavior and provider fallback | Scheduled Worker | OpenRouter/Nemotron by default, then deterministic fallback |
 | PoC work status | `POC_TODO.md` | Update as implementation and validation finish |
 | General backlog | `task.md` | Must agree with implementation/tests, not supersede them |
 
-The legacy FastAPI onboarding and SQLite `users` tables may remain during the
-transition, but they are not allowed to become a second production subscriber
-source.
+The legacy FastAPI onboarding surface and D1-over-HTTP subscriber bridge have
+been removed. Retained SQLite/Scrapy/SMTP code is local event-pipeline reference
+tooling and cannot read production subscribers.
 
 ## Trust boundaries
 
@@ -102,6 +105,8 @@ source.
 
 - If the LLM is missing or fails, deterministic ranking keeps the digest path
   available.
+- If one event source fails, successful source results continue and a sanitized
+  per-source diagnostic is recorded.
 - If D1 fails, the scheduled Worker fails closed and must not use a fallback
   recipient or stale subscriber export.
 - A failure for one subscriber should be isolated and reported without exposing
@@ -113,10 +118,10 @@ source.
 - Interactive Cloudflare Worker: D1 `DB` binding; `SESSION_TTL_HOURS`; magic-link
   `APP_BASE_URL`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `EMAIL_FROM`; optional
   `MAGIC_LINK_TTL_MINUTES`; and secret `MAILGUN_API_KEY`.
-- Scheduled Cloudflare Worker: D1 binding, Cron Trigger, `LLM_BACKEND` defaulting
-  to `openrouter`, `OPENROUTER_MODEL` defaulting to
-  `nvidia/nemotron-3-ultra-550b-a55b:free`, and Worker secrets for OpenRouter and
-  Mailgun.
+- Scheduled Cloudflare Worker: D1 binding, Cron Trigger,
+  `OPENROUTER_MODEL` defaulting to
+  `nvidia/nemotron-3-ultra-550b-a55b:free`, `DIGEST_DELIVERY_ENABLED` defaulting
+  to `false`, and Worker secrets for OpenRouter and Mailgun.
 - Pages Function: non-secret `API_BASE_URL` when the Worker is not same-origin.
 - GitHub Actions has no production runtime ownership. The old scheduled digest
   workflow has been removed.

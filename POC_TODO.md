@@ -60,22 +60,24 @@ authoritative until deliberately revised.
 - [ ] Confirm a Cloudflare Workers plan/runtime split with enough CPU for event
   parsing; the Free plan's Cron CPU budget is not a safe production assumption.
 - [x] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
-- [ ] Port event collection and normalization to Worker-compatible asynchronous
+- [x] Port event collection and normalization to Worker-compatible asynchronous
   fetch/parsing; Scrapy and cached SQLite remain local migration references only.
 - [x] Add D1 event, recommendation, and delivery-history tables with idempotent
   writes and retention rules. The additive schema was applied to production D1
   and all four batch tables were verified on 2026-09-04.
 - [x] Read active subscribers directly from the Worker's D1 binding, excluding
   both unverified and paused users without exporting account data.
-- [ ] Call OpenRouter from the scheduled Worker, defaulting to
+- [x] Call OpenRouter from the scheduled Worker, defaulting to
   `nvidia/nemotron-3-ultra-550b-a55b:free`, and validate its JSON response.
-- [ ] Render and send digest email through Mailgun's HTTP API.
-- [ ] Add an authenticated dry-run path and per-user failure isolation.
+- [x] Render digest email and implement bounded Mailgun HTTP delivery. Production
+  digest sending remains disabled pending the controlled smoke.
+- [x] Add an authenticated dry-run path and per-user failure isolation.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
 - [x] Deploy and validate the Cron-triggered Worker. Production version
-  `d869fffa-e0ac-427d-b27f-f71b7e851493` is healthy and registered with
-  `0 8 * * *` UTC as of 2026-09-04.
+  `0578a191-da7c-4329-97b8-849ebdbc6cad` contains the safe end-to-end pipeline,
+  is healthy, keeps delivery disabled, and is registered with `0 8 * * *` UTC
+  as of 2026-09-04.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 
@@ -105,13 +107,14 @@ authoritative until deliberately revised.
 
 ## Track D — Digest completion and controlled cutover
 
-- [ ] Scrape and normalize tomorrow’s events once per Cloudflare Cron run.
-- [ ] Load all active D1 subscribers and build each exact personalization profile.
-- [ ] Rank candidates per subscriber through the configured LLM backend.
-- [ ] Render ranked events and concise fit reasons into the existing HTML email.
-- [ ] Send to each verified active subscriber and isolate per-user failures.
-- [ ] Record delivery/event history sufficiently to avoid duplicate sends.
-- [ ] Add a safe dry-run/manual Worker path that cannot accidentally email everyone.
+- [x] Scrape and normalize tomorrow’s events once per Cloudflare Cron run.
+- [x] Load all active D1 subscribers and build each exact personalization profile.
+- [x] Rank candidates per subscriber through OpenRouter or deterministic fallback.
+- [x] Render ranked events and concise fit reasons into the Brisa HTML email.
+- [x] Implement verified-subscriber delivery with per-user failure isolation; keep
+  the production delivery switch off until the controlled smoke.
+- [x] Record delivery/event history sufficiently to avoid duplicate sends.
+- [x] Add a safe dry-run/manual Worker path that cannot accidentally email everyone.
 - [ ] Run one controlled end-to-end test from onboarding through rendered email.
 
 ## Track E — Documentation, operations, and handoff
@@ -123,18 +126,32 @@ authoritative until deliberately revised.
 - [x] Add a concise architecture/data-flow diagram and source-of-truth statement.
 - [x] Reconcile `task.md`, README files, examples, and obsolete FastAPI/SQLite
   claims without deleting still-useful local tooling.
+- [x] Remove the unused FastAPI onboarding surface, D1 HTTP subscriber export,
+  local bearer-session code, and unpopulated `users_events` table.
 - [x] Ensure all implementation changes are committed and pushed so a future
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-04): 84 Python tests and 7 frontend tests
+  - [x] Local verification (2026-09-04): 87 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (21.78 KiB upload, 5.09 KiB gzip).
+    Wrangler Worker bundle dry-run pass (72.46 KiB upload, 16.75 KiB gzip).
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
+  - [x] Production Worker smoke (2026-09-04): version
+    `0578a191-da7c-4329-97b8-849ebdbc6cad` starts without external tzdata,
+    `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
+    Cron delivery remains disabled.
+
+## Post-PoC
+
+- [ ] [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): generate related
+  onboarding tags through a privacy-bounded Worker/LLM endpoint and show them as
+  optional accessible chips. Debounce/cache requests, validate and deduplicate
+  suggestions, preserve deterministic fallbacks, and keep the six-field profile
+  contract unchanged.
 
 ## Final acceptance
 
