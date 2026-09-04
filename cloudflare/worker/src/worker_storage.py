@@ -27,6 +27,28 @@ def result_changes(result: Any) -> int:
     return int(getattr(meta, "changes", 0))
 
 
+def result_rows(result: Any) -> list[dict[str, Any]]:
+    """Convert a D1 ``all()`` result into ordinary Python dictionaries."""
+    value = to_python(result)
+    rows = value.get("results", []) if isinstance(value, dict) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+async def list_active_subscribers(db: Any) -> list[dict[str, Any]]:
+    """Load verified subscribers who have not paused digest delivery."""
+    result = await db.prepare(
+        """
+        SELECT u.id, u.email, u.preferences_blob
+        FROM users AS u
+        LEFT JOIN subscriptions AS sub ON sub.user_id = u.id
+        WHERE u.is_active = 1
+          AND COALESCE(sub.is_subscribed, 1) = 1
+        ORDER BY u.id
+        """
+    ).all()
+    return result_rows(result)
+
+
 async def upsert_event(
     db: Any,
     *,

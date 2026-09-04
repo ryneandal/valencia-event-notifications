@@ -66,6 +66,17 @@ export function updateUserProfile(profile, fetchImpl = fetch) {
   );
 }
 
+export function updateSubscription(subscribed, fetchImpl = fetch) {
+  return apiFetch(
+    '/api/subscription',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ subscribed })
+    },
+    fetchImpl
+  );
+}
+
 export function logoutUser(fetchImpl = fetch) {
   return apiFetch('/api/logout', { method: 'POST' }, fetchImpl);
 }

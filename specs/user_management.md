@@ -113,7 +113,8 @@ D1 is canonical for:
 
 - unique email address;
 - serialized personalization profile;
-- active/paused subscription state;
+- verified-account state in `users.is_active`;
+- reversible delivery state in `subscriptions.is_subscribed`;
 - sessions; and
 - magic-link verification records once implemented.
 
@@ -141,9 +142,13 @@ The deployed Worker contract is:
   `{user}` plus the session cookie or `401` for an invalid/replayed/expired
   token; and
 - `/api/me`, `/api/preferences`, and `/api/logout` retain their existing
-  authenticated behavior.
+  authenticated behavior; and
+- authenticated `PATCH /api/subscription` accepts `{subscribed: boolean}`.
 
-Subscription pause/resume remains upcoming.
+Pausing is the PoC's unsubscribe behavior: it excludes the address from digest
+selection but preserves the verified account, session, and personalization
+profile. Resuming restores delivery without repeating onboarding. Permanent
+account/profile deletion is outside the PoC and must be designed separately.
 
 ## Privacy and LLM boundary
 

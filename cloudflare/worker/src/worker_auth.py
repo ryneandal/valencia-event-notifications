@@ -204,9 +204,11 @@ async def resolve_session_user(env: Any, request: Any) -> dict[str, Any] | None:
               u.email,
               u.preferences_blob,
               u.is_active,
+              COALESCE(sub.is_subscribed, 1) AS is_subscribed,
               s.id AS session_id
             FROM sessions AS s
             INNER JOIN users AS u ON u.id = s.user_id
+            LEFT JOIN subscriptions AS sub ON sub.user_id = u.id
             WHERE s.token_hash = ?
               AND s.expires_at > CURRENT_TIMESTAMP
               AND u.is_active = 1

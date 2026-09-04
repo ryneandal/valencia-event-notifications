@@ -23,7 +23,14 @@ def record_to_dict(record: Any) -> dict[str, Any] | None:
         return record
 
     result: dict[str, Any] = {}
-    for key in ("id", "email", "preferences_blob", "is_active", "session_id"):
+    for key in (
+        "id",
+        "email",
+        "preferences_blob",
+        "is_active",
+        "is_subscribed",
+        "session_id",
+    ):
         if hasattr(record, key):
             result[key] = getattr(record, key)
     return result or None

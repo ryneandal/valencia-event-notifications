@@ -95,6 +95,7 @@ class InMemoryStatement:
                 "email": email,
                 "preferences_blob": preferences_blob,
                 "is_active": 0,
+                "is_subscribed": True,
             }
             self.state.user_id = user["id"]
             self.state.users.append(user)
@@ -175,6 +176,14 @@ class InMemoryStatement:
                 if not (link["user_id"] == int(user_id) and link["purpose"] == purpose)
             ]
             return changed(before - len(self.state.magic_links))
+
+        if sql.startswith("INSERT INTO subscriptions (user_id, is_subscribed"):
+            user_id, subscribed = self.params
+            for user in self.state.users:
+                if user["id"] == int(user_id):
+                    user["is_subscribed"] = bool(subscribed)
+                    return changed(1)
+            return changed(0)
 
         raise AssertionError(f"Unhandled run SQL: {sql}")
 
@@ -451,6 +460,79 @@ async def _test_invalid_inputs_and_session_are_rejected():
     assert no_session.status == 401
 
 
+async def _test_subscription_controls_are_authenticated_and_isolated():
+    runtime_env = env()
+    await register(runtime_env, "one@example.com", '{"audience":"solo"}')
+    first_verification = await verify(runtime_env, delivered_token(runtime_env))
+    first_cookie = cookie_from_set_cookie(first_verification.headers.get("set-cookie"))
+
+    await register(runtime_env, "two@example.com", '{"audience":"family"}')
+    second_verification = await verify(runtime_env, delivered_token(runtime_env))
+    second_cookie = cookie_from_set_cookie(
+        second_verification.headers.get("set-cookie")
+    )
+
+    unauthorized = await worker.handle_request(
+        FakeRequest(
+            "https://example.com/api/subscription",
+            method="PATCH",
+            payload={"subscribed": False},
+        ),
+        runtime_env,
+    )
+    assert unauthorized.status == 401
+
+    for _ in range(2):
+        paused = await worker.handle_request(
+            FakeRequest(
+                "https://example.com/api/subscription",
+                method="PATCH",
+                headers={"cookie": first_cookie},
+                payload={"subscribed": False},
+            ),
+            runtime_env,
+        )
+        assert paused.status == 200
+        assert (await paused.json())["user"]["is_subscribed"] is False
+
+    still_authenticated = await worker.handle_request(
+        FakeRequest("https://example.com/api/me", headers={"cookie": first_cookie}),
+        runtime_env,
+    )
+    first_user = (await still_authenticated.json())["user"]
+    assert first_user["is_subscribed"] is False
+    assert first_user["preferences_blob"] == '{"audience":"solo"}'
+
+    second_user = await worker.handle_request(
+        FakeRequest("https://example.com/api/me", headers={"cookie": second_cookie}),
+        runtime_env,
+    )
+    assert (await second_user.json())["user"]["is_subscribed"] is True
+
+    resumed = await worker.handle_request(
+        FakeRequest(
+            "https://example.com/api/subscription",
+            method="PATCH",
+            headers={"cookie": first_cookie},
+            payload={"subscribed": True},
+        ),
+        runtime_env,
+    )
+    assert resumed.status == 200
+    assert (await resumed.json())["user"]["is_subscribed"] is True
+
+    invalid = await worker.handle_request(
+        FakeRequest(
+            "https://example.com/api/subscription",
+            method="PATCH",
+            headers={"cookie": first_cookie},
+            payload={"subscribed": "false"},
+        ),
+        runtime_env,
+    )
+    assert invalid.status == 400
+
+
 def test_registration_verification_and_preferences():
     asyncio.run(_test_registration_verification_and_preferences())
 
@@ -513,6 +595,10 @@ def test_invalid_inputs_and_session_are_rejected():
     asyncio.run(_test_invalid_inputs_and_session_are_rejected())
 
 
+def test_subscription_controls_are_authenticated_and_isolated():
+    asyncio.run(_test_subscription_controls_are_authenticated_and_isolated())
+
+
 def test_request_path_ignores_query_and_fragment():
     assert (
         request_path("https://example.com/api/health?probe=1#status") == "/api/health"
@@ -555,6 +641,7 @@ def test_schema_migration_is_additive_and_idempotent():
         "users",
         "sessions",
         "magic_links",
+        "subscriptions",
         "events",
         "digest_runs",
         "recommendations",

@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { registerUser, updateUserProfile, verifyMagicLink } from '../pages/src/api.js';
+import {
+  registerUser,
+  updateSubscription,
+  updateUserProfile,
+  verifyMagicLink
+} from '../pages/src/api.js';
 import {
   DEFAULT_FORM_STATE,
   INTEREST_CLUSTERS,
@@ -98,4 +103,27 @@ describe('personalisation onboarding contract', () => {
     expect(options.method).toBe('PATCH');
     expect(JSON.parse(options.body).preferences_blob).toBe(JSON.stringify(profile));
   });
+
+  test.each([false, true])(
+    'updates subscription state with an authenticated same-origin request: %s',
+    async (subscribed) => {
+      const fetchImpl = vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            user: { email: 'family@example.com', is_subscribed: subscribed }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
+
+      const payload = await updateSubscription(subscribed, fetchImpl);
+
+      const [path, options] = fetchImpl.mock.calls[0];
+      expect(path).toBe('/api/subscription');
+      expect(options.method).toBe('PATCH');
+      expect(options.credentials).toBe('include');
+      expect(JSON.parse(options.body)).toEqual({ subscribed });
+      expect(payload.user.is_subscribed).toBe(subscribed);
+    }
+  );
 });

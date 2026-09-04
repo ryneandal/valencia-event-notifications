@@ -48,6 +48,10 @@ class SQLiteD1Statement:
         row = cursor.fetchone()
         return dict(row) if row is not None else None
 
+    async def all(self):
+        cursor = self.connection.execute(self.sql, self.params)
+        return {"success": True, "results": [dict(row) for row in cursor.fetchall()]}
+
 
 def database() -> sqlite3.Connection:
     connection = sqlite3.connect(":memory:")
@@ -92,6 +96,35 @@ def test_event_upsert_has_stable_identity_and_deduplicates():
     )
     assert tuple(row) == (first_key, "Updated description")
     assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+
+
+def test_active_subscriber_selection_excludes_paused_and_unverified_users():
+    connection = database()
+    db = SQLiteD1(connection)
+    active = connection.execute(
+        "INSERT INTO users (email, is_active) VALUES ('active@example.com', 1)"
+    )
+    paused = connection.execute(
+        "INSERT INTO users (email, is_active) VALUES ('paused@example.com', 1)"
+    )
+    connection.execute(
+        "INSERT INTO users (email, is_active) VALUES ('pending@example.com', 0)"
+    )
+    connection.execute(
+        "INSERT INTO subscriptions (user_id, is_subscribed) VALUES (?, 0)",
+        (paused.lastrowid,),
+    )
+    connection.commit()
+
+    subscribers = asyncio.run(storage.list_active_subscribers(db))
+
+    assert subscribers == [
+        {
+            "id": active.lastrowid,
+            "email": "active@example.com",
+            "preferences_blob": None,
+        }
+    ]
 
 
 def test_digest_run_and_recommendation_store_model_provenance():

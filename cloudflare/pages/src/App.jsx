@@ -5,6 +5,7 @@ import {
   logoutUser,
   registerUser,
   resumeUser,
+  updateSubscription,
   updateUserProfile,
   verifyMagicLink
 } from './api.js';
@@ -162,7 +163,7 @@ export default function App() {
       .then(({ user }) => {
         setCurrentUser(user);
         setForm(hydrateFormState(user.email, user.preferences_blob));
-        setNotice('Your saved profile is ready to edit.');
+        setCompletion({ kind: 'account', email: user.email });
       })
       .catch((requestError) => {
         if (![401, 404].includes(requestError.status)) {
@@ -252,33 +253,81 @@ export default function App() {
     }
   };
 
+  const changeSubscription = async (subscribed) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { user } = await updateSubscription(subscribed);
+      setCurrentUser(user);
+      setCompletion({ kind: 'account', email: user.email });
+      setNotice(
+        subscribed
+          ? 'Your next-day digest is active again.'
+          : 'Emails are paused. Your saved profile is still here whenever you return.'
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (completion) {
     const awaitingVerification = completion.kind === 'link-sent';
     const justVerified = completion.kind === 'verified';
+    const subscribed = currentUser?.is_subscribed !== false;
     return (
       <main className="onboarding-shell">
         <StoryPanel />
         <section className="form-panel success-screen" aria-live="polite">
           <div className="success-mark" aria-hidden="true">✦</div>
           <p className="eyebrow">
-            {awaitingVerification ? 'CHECK YOUR INBOX' : justVerified ? 'EMAIL VERIFIED' : 'PROFILE SAVED'}
+            {awaitingVerification
+              ? 'CHECK YOUR INBOX'
+              : !subscribed
+                ? 'DIGEST PAUSED'
+                : justVerified
+                  ? 'EMAIL VERIFIED'
+                  : 'YOUR BRISA ACCOUNT'}
           </p>
-          <h2>{awaitingVerification ? 'One quick step remains.' : 'Tomorrow just became easier.'}</h2>
+          <h2>
+            {awaitingVerification
+              ? 'One quick step remains.'
+              : subscribed
+                ? 'Tomorrow just became easier.'
+                : 'Your inbox is taking a breather.'}
+          </h2>
           <p>
             {awaitingVerification ? (
               <>We sent a secure, one-time link to <strong>{completion.email}</strong>. Open it to activate your digest.</>
+            ) : !subscribed ? (
+              <>The digest for <strong>{completion.email}</strong> is paused. Your profile remains saved, and you can resume without repeating onboarding.</>
             ) : (
               <>The personalisation profile for <strong>{completion.email}</strong> will guide the event ranking used to prepare the email digest.</>
             )}
           </p>
+          {notice ? <p className="status-message" role="status">{notice}</p> : null}
+          {error ? <p className="error-message" role="alert">{error}</p> : null}
           <div className="success-actions">
             {awaitingVerification ? (
               <button className="next-button" onClick={() => { setCompletion(null); setStep(0); }} type="button">Use another email</button>
             ) : (
               <button className="next-button" onClick={() => { setCompletion(null); setStep(1); }} type="button">Edit my profile</button>
             )}
+            {currentUser ? (
+              <button
+                className="back-button"
+                disabled={busy}
+                onClick={() => changeSubscription(!subscribed)}
+                type="button"
+              >
+                {busy ? 'Updating…' : subscribed ? 'Pause email digest' : 'Resume email digest'}
+              </button>
+            ) : null}
             {currentUser ? <button className="text-button" disabled={busy} onClick={signOut} type="button">Sign out</button> : null}
           </div>
+          {currentUser ? <p className="subscription-note">Pausing unsubscribes this address from delivery without deleting its saved profile or signing you out.</p> : null}
         </section>
       </main>
     );

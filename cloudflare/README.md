@@ -72,6 +72,7 @@ Currently deployed Worker routes:
 - `POST /api/logout`
 - `GET /api/me`
 - `PATCH /api/preferences`
+- `PATCH /api/subscription`
 
 Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 
@@ -82,11 +83,12 @@ Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 - the link is `APP_BASE_URL/auth/verify?token=...`;
 - `POST /api/auth/verify` accepts the token and returns `200` with `{user}` and
   the session cookie; invalid, expired, or replayed tokens return `401`; and
-- `/api/me`, `/api/preferences`, and `/api/logout` retain their existing
-  authenticated behavior.
+- `/api/me`, `/api/preferences`, `/api/subscription`, and `/api/logout` retain
+  their authenticated behavior. `PATCH /api/subscription` accepts
+  `{subscribed: boolean}` and preserves the account, session, and profile.
 
 The Worker auth code, additive D1 migration, email provider configuration, and
-deployment are live. Subscription pause/resume remains planned.
+deployment are live.
 
 ## Configuration
 

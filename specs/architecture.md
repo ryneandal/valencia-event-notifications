@@ -69,7 +69,7 @@ allowance is not a safe production assumption for this workload.
 | --- | --- | --- |
 | Subscriber identity and verified email | D1 | Never source control or the cached SQLite user table |
 | Personalization profile | D1 `users.preferences_blob` | JSON shape defined by `src/valencia_events/personalization.py`; UI mapping in `cloudflare/pages/src/profile.js` |
-| Subscription state | D1 | Only active subscribers are exported to the digest job |
+| Subscription state | D1 `subscriptions` | Digest selection requires a verified user and `is_subscribed != 0`; no row means subscribed for backward compatibility |
 | Sessions and email verification | D1 | Private to the Worker; never exported to the batch job |
 | Scraped events and deduplication state | D1 `events` | SQLite remains local migration/reference state only |
 | Recommendation and send history | D1 `digest_runs`, `recommendations`, `deliveries` | One run per digest date and one claimable delivery state per run/user pair |

@@ -31,6 +31,7 @@ def user_payload(user: dict[str, Any]) -> dict[str, Any]:
         "email": user["email"],
         "preferences_blob": user.get("preferences_blob"),
         "is_active": bool(user.get("is_active")),
+        "is_subscribed": bool(user.get("is_subscribed", True)),
     }
 
 
@@ -274,21 +275,38 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
             .bind(preferences_blob, user["id"])
             .run()
         )
+        user["preferences_blob"] = preferences_blob
+        return json_response({"user": user_payload(user)})
 
-        updated = record_to_dict(
-            await env_value(env, "DB")
+    if path == "/api/subscription" and method == "PATCH":
+        user = await resolve_session_user(env, request)
+        if not user:
+            return json_response({"error": "Unauthorized"}, 401)
+
+        try:
+            payload = await request_json(request)
+        except Exception:
+            return json_response({"error": "Invalid JSON payload"}, 400)
+
+        subscribed = payload.get("subscribed")
+        if not isinstance(subscribed, bool):
+            return json_response({"error": "subscribed must be a boolean"}, 400)
+
+        await (
+            env_value(env, "DB")
             .prepare(
                 """
-                    SELECT id, email, preferences_blob, is_active
-                    FROM users
-                    WHERE id = ?
-                    LIMIT 1
-                    """
+                INSERT INTO subscriptions (user_id, is_subscribed, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                  is_subscribed = excluded.is_subscribed,
+                  updated_at = CURRENT_TIMESTAMP
+                """
             )
-            .bind(user["id"])
-            .first()
+            .bind(user["id"], int(subscribed))
+            .run()
         )
-
-        return json_response({"user": user_payload(updated)})
+        user["is_subscribed"] = subscribed
+        return json_response({"user": user_payload(user)})
 
     return json_response({"error": "Not found"}, 404)
