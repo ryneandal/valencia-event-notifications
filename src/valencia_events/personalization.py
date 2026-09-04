@@ -20,7 +20,9 @@ logger = get_logger(__name__)
 DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
 DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-2.5-pro"
 DEFAULT_MISTRAL_MODEL = "mistral-medium-2508"
-DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
+DEFAULT_LLM_BACKEND = "openrouter"
+DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+OPENROUTER_PLAIN_JSON_MODELS = frozenset({DEFAULT_OPENROUTER_MODEL})
 
 DEFAULT_FAMILY_PROFILE: dict[str, Any] = {
     "audience": "family_with_school_age_kids",
@@ -469,11 +471,29 @@ class OpenRouterEventRanker(GeminiEventRanker):
                         "Candidate events JSON:\n{events_json}\n\n"
                         "Select up to {limit} events and return ranked output. "
                         "Include selected_events with event_hash and reason. "
-                        "Reasons should be short and family-focused."
+                        "Reasons should be short and family-focused. Return only "
+                        "a JSON object with summary, selected_events, and "
+                        "selected_event_hashes; do not use Markdown fences."
                     ),
                 ),
             ]
         )
+
+        payload = {
+            "family_profile_json": json.dumps(
+                family_profile, ensure_ascii=False, indent=2
+            ),
+            "events_json": json.dumps(event_payload, ensure_ascii=False, indent=2),
+            "limit": str(limit),
+        }
+        if model in OPENROUTER_PLAIN_JSON_MODELS:
+            llm = ChatOpenRouter(
+                model=model,
+                api_key=self.api_key,
+                temperature=0,
+            )
+            response = (prompt | llm).invoke(payload)
+            return self._parse_plain_json_response(response)
 
         llm = ChatOpenRouter(
             model=model,
@@ -485,15 +505,27 @@ class OpenRouterEventRanker(GeminiEventRanker):
             GeminiRankingResponse,
             method="json_schema",
         )
-        return chain.invoke(
-            {
-                "family_profile_json": json.dumps(
-                    family_profile, ensure_ascii=False, indent=2
-                ),
-                "events_json": json.dumps(event_payload, ensure_ascii=False, indent=2),
-                "limit": str(limit),
-            }
-        )
+        return chain.invoke(payload)
+
+    @staticmethod
+    def _parse_plain_json_response(response: Any) -> GeminiRankingResponse:
+        content = getattr(response, "content", response)
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(
+                block if isinstance(block, str) else str(block.get("text", ""))
+                for block in content
+                if isinstance(block, (str, dict))
+            )
+        else:
+            raise ValueError("OpenRouter returned an unsupported response payload")
+
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end < start:
+            raise ValueError("OpenRouter response did not contain a JSON object")
+        return GeminiRankingResponse.model_validate_json(text[start : end + 1])
 
 
 def load_family_profile() -> dict[str, Any]:
@@ -576,19 +608,12 @@ def _ranker_from_env() -> (
     GeminiEventRanker | MistralEventRanker | OpenRouterEventRanker | None
 ):
     """Build the configured LLM ranker from environment variables."""
-    backend = os.environ.get("LLM_BACKEND", "").strip().lower()
+    backend = os.environ.get("LLM_BACKEND", "").strip().lower() or DEFAULT_LLM_BACKEND
     if backend == "mistral":
         return MistralEventRanker.from_env()
     if backend == "gemini":
         return GeminiEventRanker.from_env()
     if backend == "openrouter":
         return OpenRouterEventRanker.from_env()
-    if backend:
-        logger.warning(f"Unsupported LLM_BACKEND={backend}; using default ranking")
-        return None
-
-    return (
-        MistralEventRanker.from_env()
-        or GeminiEventRanker.from_env()
-        or OpenRouterEventRanker.from_env()
-    )
+    logger.warning(f"Unsupported LLM_BACKEND={backend}; using default ranking")
+    return None

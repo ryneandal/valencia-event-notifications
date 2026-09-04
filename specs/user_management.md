@@ -7,14 +7,10 @@ The Git-connected Pages project serves the React/Vite onboarding SPA and
 same-origin API proxy. The Python Worker, D1 database, single-use magic links,
 and Mailgun sandbox delivery are also deployed.
 
-Two important pieces are not yet production-complete:
-
-- the controlled production registration email has been accepted and delivered,
-  but the one-time browser verification/session/profile smoke test still needs
-  completion; and
-- the tested D1 subscriber loader is implemented, but requires production
-  GitHub variables/credentials and a successful scheduled run before it is
-  considered operational.
+The complete registration, magic-link, session, and profile round-trip is live.
+Production D1 contains a verified active profile with all six authoritative
+personalization keys. The remaining product work is the Cloudflare-native
+scheduled digest runtime and pause/unsubscribe support.
 
 The older FastAPI/SQLite onboarding implementation under `src/valencia_events/`
 is retained for now, but it is not the production web architecture. New web
@@ -37,8 +33,8 @@ The onboarding application lets a person:
    out.
 
 Completing onboarding stores the profile in D1. It does not run scrapers or an
-LLM request synchronously in the browser. The scheduled GitHub Actions job does
-that work and sends the resulting HTML digest by email.
+LLM request synchronously in the browser. A Cron-triggered Cloudflare Worker
+will perform that work and send the resulting HTML digest by email.
 
 ## Personalization profile contract
 
@@ -94,11 +90,7 @@ The PoC authentication target is a verified, passwordless email magic link.
 Google OAuth and Passkeys are possible later additions, not requirements for
 this PoC.
 
-Current behavior creates a session from an email address alone. This is useful
-for integration testing but is not acceptable for public registration because
-anyone who knows an address could assume that account.
-
-The implemented magic-link flow:
+The deployed magic-link flow:
 
 - returns a generic `202` from registration/login so account state is not
   disclosed;
@@ -110,8 +102,8 @@ The implemented magic-link flow:
   successful verification; and
 - builds a same-origin verification link from the configured application URL.
 
-This behavior is validated locally but not yet deployed or connected to a real
-email-delivery provider.
+This behavior is deployed and its Mailgun delivery and D1 persistence have been
+verified with a controlled production account.
 
 ## Data model and source-of-truth boundaries
 
@@ -125,19 +117,12 @@ D1 is canonical for:
 - sessions; and
 - magic-link verification records once implemented.
 
-### SQLite: scheduled event processing
+### D1: scheduled event processing
 
-The GitHub Actions job continues to use cached `events.db` for scraped event
-deduplication and the Python pipeline's event-processing state. SQLite is not
-the production source of truth for subscriber identity after the D1 bridge is
-enabled.
-
-The D1 subscriber loader reads active users directly through Cloudflare's
-authenticated D1 HTTP query API. It provides the scheduled job only the fields
-it needs: recipient email, personalization profile, active state, and row
-metadata required to map the existing Python `User` model. It does not expose
-sessions or authentication records. D1 mode fails closed: an unavailable or
-empty D1 result never falls back to `RECIPIENT_EMAIL`.
+The scheduled Cloudflare Worker will store normalized events, deduplication
+state, recommendations, and delivery history in D1. The existing SQLite and D1
+HTTP subscriber-loader implementations remain local migration references, not
+production runtime components.
 
 ## API boundary
 
@@ -145,11 +130,7 @@ The browser calls same-origin `/api/*` URLs. A Pages Function forwards those
 requests to the Python Worker, so the browser does not need cross-origin Worker
 URLs or credentials.
 
-The currently deployed Worker includes health, registration, email-only login,
-current-user lookup, preference updates, and logout. Treat its registration and
-login routes as development-only.
-
-The tested, not-yet-deployed Worker contract is:
+The deployed Worker contract is:
 
 - `POST /api/register` with `{email, preferences_blob}` returns a generic `202`
   and sends a verification link for a new inactive user;
@@ -166,7 +147,7 @@ Subscription pause/resume remains upcoming.
 
 ## Privacy and LLM boundary
 
-The scheduled job may send event details and the personalization profile to the
+The scheduled Cloudflare Worker may send event details and the personalization profile to the
 configured Gemini, Mistral, or OpenRouter model. It must not send the subscriber
 email, session data, magic-link data, Cloudflare credentials, or SMTP
 credentials. Provider calls fall back to deterministic ranking when unavailable.
@@ -190,11 +171,12 @@ credentials. Provider calls fall back to deterministic ranking when unavailable.
 - [x] Select Cloudflare Pages + Python Worker + D1 as the production web stack.
 - [x] Deploy the Pages project, static dashboard, API proxy, Worker, and D1.
 - [x] Implement and validate the React personalization onboarding SPA.
-- [ ] Deploy the React personalization onboarding SPA to production Pages.
+- [x] Deploy the React personalization onboarding SPA to production Pages.
 - [x] Implement and test verified magic-link authentication.
-- [ ] Configure email delivery, migrate production D1, and deploy magic-link auth.
-- [x] Implement and test direct D1 subscriber loading for the scheduled digest.
-- [ ] Configure the GitHub D1 credentials/IDs and verify a production digest run.
+- [x] Configure email delivery, migrate production D1, and deploy magic-link auth.
+- [x] Verify the live profile round-trip and exact D1 personalization shape.
+- [ ] Implement and deploy the Cron-triggered Cloudflare digest Worker.
+- [x] Retire the GitHub Actions digest schedule during Cloudflare migration.
 - [ ] Add pause/resume subscription controls.
 - [ ] Record per-user send/relevance history after a digest succeeds.
 - [ ] Remove or clearly deprecate the legacy FastAPI onboarding surface after

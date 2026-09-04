@@ -24,11 +24,14 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
 3.  **Output**:
     - A filtered list of events with personalized descriptions.
 4.  **Integration**:
-    - Run as part of the daily GHA workflow.
-    - Iterate through all active users, generating a custom email for each.
+    - Run from a daily Cloudflare Cron Trigger.
+    - Iterate through all active D1 users, generating a custom email for each.
 
 ## Technical Architecture
-- **Model**: Gemini, Mistral, or OpenRouter via LangChain (`langchain-google-genai`, `langchain-mistralai`, or `langchain-openrouter`), with configurable primary and fallback models.
+- **Model**: OpenRouter by default using `nvidia/nemotron-3-ultra-550b-a55b:free`,
+  with Gemini and Mistral available as explicit alternatives via LangChain
+  (`langchain-openrouter`, `langchain-google-genai`, or
+  `langchain-mistralai`). Primary and fallback models remain configurable.
 - **Failure behavior**: provider/model failures must use the deterministic rank-and-limit fallback; tests must not call live provider APIs.
 - **Pipeline**:
     1.  `cli.py` fetches tomorrow's events.
@@ -44,5 +47,7 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
 - [x] Add LLM dependencies (LangChain: `langchain-google-genai`, `langchain-mistralai`, `langchain-openrouter`).
 - [x] Define LLM Prompt Template.
 - [x] Implement ranking logic (`rank_events_for_family` in `src/valencia_events/personalization.py`).
-- [x] Update `src/valencia_events/cli.py` to loop through active users.
+- [x] Update `src/valencia_events/cli.py` to loop through active users as migration
+  reference behavior.
+- [ ] Port ranking orchestration to the scheduled Cloudflare Worker.
 - [ ] Persist `relevance_score` / `relevance_reason` to the `users_events` table.

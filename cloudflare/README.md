@@ -27,7 +27,7 @@ not a separately deployed application.
 | Python Worker with D1 binding | Deployed |
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
-| Scheduled job reads active D1 subscribers | Implemented and tested; production configuration/run pending |
+| Cloudflare Cron digest Worker | Upcoming; the legacy GitHub Actions schedule is removed |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
@@ -45,17 +45,19 @@ Browser
   -> Python Worker
   -> D1 (subscriber, profile, session/auth state)
 
-Scheduled GitHub Actions job
-  -> authenticated Cloudflare D1 HTTP query API (implemented; activation pending)
-  -> scrape and normalize events into cached SQLite
-  -> rank each subscriber's events via Gemini, Mistral, or OpenRouter
-  -> render and send HTML email through SMTP
+Cloudflare Cron Trigger [upcoming]
+  -> scheduled Worker
+  -> fetch and normalize events into D1
+  -> load active subscriber profiles directly from D1
+  -> rank with OpenRouter/Nemotron by default
+  -> render and send through Mailgun's HTTP API
 ```
 
 The React rework stores the structured profile documented in
 [`../specs/user_management.md`](../specs/user_management.md). D1 is canonical
-for subscribers; cached SQLite remains the scheduled job's event/deduplication
-store. See [`../specs/architecture.md`](../specs/architecture.md) for the full
+for subscribers and will also own production event and delivery history. Cached
+SQLite remains local migration/reference state only. See
+[`../specs/architecture.md`](../specs/architecture.md) for the full
 source-of-truth boundaries.
 
 ## API surface
@@ -65,14 +67,12 @@ Currently deployed Worker routes:
 - `GET /api/health`
 - `POST /api/register`
 - `POST /api/login`
+- `POST /api/auth/verify`
 - `POST /api/logout`
 - `GET /api/me`
 - `PATCH /api/preferences`
 
-Authenticated routes use an `HttpOnly` session cookie. The register/login routes
-currently trust possession of an email string and are development-only.
-
-The locally implemented and tested replacement contract is:
+Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 
 - `POST /api/register` with `{email, preferences_blob}` returns a generic `202`
   and sends a link for a new inactive user;
@@ -84,9 +84,8 @@ The locally implemented and tested replacement contract is:
 - `/api/me`, `/api/preferences`, and `/api/logout` retain their existing
   authenticated behavior.
 
-The Worker auth code and Wrangler dry-run pass, and the additive D1 migration is
-applied. This contract is not live until email provider configuration and Worker
-deployment are completed. Subscription pause/resume remains planned.
+The Worker auth code, additive D1 migration, email provider configuration, and
+deployment are live. Subscription pause/resume remains planned.
 
 ## Configuration
 
@@ -120,19 +119,12 @@ Interactive local deployments may use `wrangler login`. CI/Terraform should use
 a narrowly scoped `CLOUDFLARE_API_TOKEN` and the appropriate Cloudflare account
 and zone IDs. Never commit `terraform.tfvars`, `.dev.vars`, or real tokens.
 
-The separate scheduled digest workflow requires SMTP secrets and one optional
-LLM provider API key. Provider/backend/model configuration is documented in the
-root [`README.md`](../README.md) and `.env.example`.
-
-For its direct, read-only D1 subscriber source, the scheduled workflow uses:
-
-- `SUBSCRIBER_BACKEND=d1` (explicit backend selection);
-- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_D1_DATABASE_ID` as GitHub repository
-  variables; and
-- a least-privilege `CLOUDFLARE_API_TOKEN` as a GitHub repository secret.
-
-`SUBSCRIBER_BACKEND=sqlite` remains available only for explicit local/test use
-and is the only mode in which `RECIPIENT_EMAIL` may be used as a fallback.
+The upcoming scheduled Worker uses a Cron Trigger and direct D1 binding. Store
+`OPENROUTER_API_KEY` and the digest Mailgun credential as Worker secrets. Its
+default backend/model are `openrouter` and
+`nvidia/nemotron-3-ultra-550b-a55b:free`. Provider/backend/model configuration
+for the local migration reference is documented in the root
+[`README.md`](../README.md) and `.env.example`.
 
 ## Local development
 
@@ -213,6 +205,6 @@ public sign-in flow.
   export/backup before destructive migration; rolling back Worker code does not
   reverse a D1 migration.
 
-After any rollback, verify `/api/health`, the Pages proxy, authentication/session
-handling, profile round-tripping, and that the scheduled subscriber loader still
-matches the deployed D1 schema.
+After any rollback, verify `/api/health`, the Pages proxy,
+authentication/session handling, profile round-tripping, and that the scheduled
+Worker still matches the deployed D1 schema.

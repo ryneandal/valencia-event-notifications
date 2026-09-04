@@ -7,6 +7,7 @@ import pytz
 
 from valencia_events.models import Event
 from valencia_events.personalization import (
+    DEFAULT_LLM_BACKEND,
     DEFAULT_MISTRAL_MODEL,
     DEFAULT_OPENROUTER_MODEL,
     GeminiEventRanker,
@@ -131,6 +132,8 @@ def test_openrouter_ranker_from_env_uses_default_model(monkeypatch, tmp_path):
     ranker = OpenRouterEventRanker.from_env()
 
     assert ranker is not None
+    assert DEFAULT_LLM_BACKEND == "openrouter"
+    assert DEFAULT_OPENROUTER_MODEL == "nvidia/nemotron-3-ultra-550b-a55b:free"
     assert ranker.model == DEFAULT_OPENROUTER_MODEL
     assert ranker.fallback_model == ""
 
@@ -243,15 +246,82 @@ def test_openrouter_ranker_uses_dedicated_structured_output_client(monkeypatch):
     assert calls["payload"]["limit"] == "1"
 
 
-def test_ranker_from_env_prefers_mistral_when_available(monkeypatch):
+def test_openrouter_default_model_parses_plain_json(monkeypatch):
+    import langchain_core.prompts
+    import langchain_openrouter
+
+    calls = {}
+
+    class FakeResponse:
+        content = (
+            "Here is the result:\n"
+            '{"summary":"A strong fit.","selected_events":['
+            '{"event_hash":"a","reason":"Interactive."}],'
+            '"selected_event_hashes":["a"]}'
+        )
+
+    class FakeChain:
+        def invoke(self, payload):  # noqa: ANN001
+            calls["payload"] = payload
+            return FakeResponse()
+
+    class FakePrompt:
+        def __or__(self, llm):  # noqa: ANN001
+            calls["llm"] = llm
+            return FakeChain()
+
+    class FakePromptTemplate:
+        @classmethod
+        def from_messages(cls, messages):  # noqa: ANN001
+            calls["messages"] = messages
+            return FakePrompt()
+
+    class FakeChatOpenRouter:
+        def __init__(self, **kwargs):  # noqa: ANN003
+            calls["client_kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        langchain_core.prompts,
+        "ChatPromptTemplate",
+        FakePromptTemplate,
+    )
+    monkeypatch.setattr(
+        langchain_openrouter,
+        "ChatOpenRouter",
+        FakeChatOpenRouter,
+    )
+    ranker = OpenRouterEventRanker(
+        api_key="test-key",
+        model=DEFAULT_OPENROUTER_MODEL,
+    )
+
+    result = ranker._invoke_model(
+        model=DEFAULT_OPENROUTER_MODEL,
+        family_profile={"audience": "test"},
+        event_payload=[{"event_hash": "a", "title": "A"}],
+        limit=1,
+    )
+
+    assert result.summary == "A strong fit."
+    assert result.selected_events[0].reason == "Interactive."
+    assert calls["client_kwargs"] == {
+        "model": DEFAULT_OPENROUTER_MODEL,
+        "api_key": "test-key",
+        "temperature": 0,
+    }
+
+
+def test_ranker_from_env_defaults_to_openrouter(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("LLM_BACKEND", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
     monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
 
     ranker = _ranker_from_env()
 
-    assert isinstance(ranker, MistralEventRanker)
-    assert ranker.model == DEFAULT_MISTRAL_MODEL
+    assert isinstance(ranker, OpenRouterEventRanker)
+    assert ranker.model == DEFAULT_OPENROUTER_MODEL
 
 
 def test_ranker_from_env_can_select_gemini(monkeypatch):

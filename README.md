@@ -4,7 +4,11 @@ Receive email notifications about events happening in València, Spain every day
 
 ## Overview
 
-This project automatically scrapes event information from various sources in València and sends a daily digest email with events happening the next day. It uses Scrapy for web scraping, stores events in SQLite with deduplication, and sends HTML emails via SMTP.
+This project collects event information from sources around València and sends a
+personalized next-day digest. The deployed registration platform uses Cloudflare
+Pages, Workers, D1, and Mailgun. The existing Scrapy/SQLite/SMTP command remains
+the local reference implementation while the digest runtime moves to a
+Cron-triggered Cloudflare Worker.
 
 ## Features
 
@@ -12,7 +16,7 @@ This project automatically scrapes event information from various sources in Val
 - 📅 **Daily Digest**: Automated emails with tomorrow's events
 - 🔄 **Deduplication**: Hash-based event deduplication in SQLite
 - 🌍 **Timezone Aware**: Proper handling of Europe/Madrid timezone
-- 🤖 **GitHub Actions**: Fully automated nightly workflow
+- ☁️ **Cloudflare-native target**: Pages, Workers, D1, Cron Triggers, and Mailgun
 - ✅ **Type Safe**: Pydantic models with full type hints
 
 ## Project Status
@@ -26,31 +30,33 @@ The project core is implemented and running:
 - ✅ SQLite storage with deduplication
 - ✅ LLM-based event ranking per user (Gemini, Mistral, or OpenRouter via LangChain)
 - ✅ Email generation (Jinja2 templates) and sending (SMTP)
-- ✅ Periodic execution via GitHub Actions
 - ✅ Cloudflare Pages, Python Worker, D1, and the same-origin API proxy are deployed
-- ✅ The scheduled runner can load active D1 subscribers through Cloudflare's authenticated API (production configuration/run pending)
-- 🚧 The tested React personalization SPA and magic-link Worker auth await production deployment/configuration (see [specs/user_management.md](specs/user_management.md))
+- ✅ React personalization, verified magic links, and branded Mailgun delivery are live
+- ✅ A verified production profile with the complete personalization shape is stored in D1
+- 🚧 Event collection, OpenRouter ranking, digest history, and delivery still need
+  migration to a Cron-triggered Cloudflare Worker
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
 ## Architecture
 
 ```text
-React onboarding on Cloudflare Pages [implemented; deploy pending]
+React onboarding on Cloudflare Pages [deployed]
   -> same-origin Pages Function
   -> Python Worker
   -> D1 subscriber/profile store
 
-Scheduled GitHub Actions job
-  -> active D1 subscribers through authenticated D1 HTTP API
-  -> Scrapy -> normalization -> cached SQLite event store
-  -> per-user Gemini/Mistral/OpenRouter ranking
-  -> Jinja2 HTML -> SMTP
+Cloudflare Cron Trigger [upcoming]
+  -> scheduled Worker -> event-source fetch/normalization
+  -> D1 events, active subscribers, and delivery history
+  -> OpenRouter ranking (Nemotron default)
+  -> Mailgun HTML digest
 ```
 
-The Cloudflare stack owns interactive user data; the scheduled Python stack owns
-scraping and digest generation. See [specs/architecture.md](specs/architecture.md)
-for deployment state, trust boundaries, and failure behavior.
+Cloudflare owns the complete target production platform. The local Python
+pipeline remains migration/reference code, not the final scheduler. See
+[specs/architecture.md](specs/architecture.md) for deployment state, trust
+boundaries, and failure behavior.
 
 ## Data Schema
 
@@ -63,7 +69,7 @@ Cloudflare D1 is the canonical production store for subscribers:
 - **session and verification tables**: Worker-owned authentication state that is
   never exposed to the digest or an LLM.
 
-The scheduled job uses cached SQLite (`events.db`) for event processing:
+The local reference command uses SQLite (`events.db`) for event processing:
 
 - **`events`**: Stores unique events found by scrapers.
   - `event_hash`: Unique identifier (SHA256 of title + date + url).
@@ -76,11 +82,9 @@ The scheduled job uses cached SQLite (`events.db`) for event processing:
   - `is_sent`: Tracks if the event has been emailed to the user.
   - *Note: the schema exists but the digest pipeline does not yet write to this table.*
 
-Legacy SQLite user/session tables remain during the migration but are not the
-production subscriber source of truth. The scheduled runner's D1 backend reads
-active recipient/profile rows directly from Cloudflare's authenticated D1 API
-and fails closed rather than using a fallback recipient when D1 is unavailable
-or empty.
+The scheduled Cloudflare Worker will move event, recommendation, and delivery
+history into D1. Legacy SQLite user/session tables remain local-only and are not
+the production subscriber source of truth.
 
 ## Quick Start
 
@@ -118,7 +122,7 @@ or empty.
    uv run ruff check .
    ```
 
-6. **Run the Digest**:
+6. **Run the local reference digest**:
 
    The workflow is exposed as a single CLI entry point:
 
@@ -141,7 +145,7 @@ or empty.
 
 ## Configuration
 
-The email workflow requires:
+The local reference email workflow requires:
 
 - `SMTP_USER`: Email account for sending (e.g., Gmail)
 - `SMTP_APP_PASSWORD`: App-specific password for SMTP
@@ -157,7 +161,7 @@ The email workflow requires:
 Personalized ranking is optional and falls back to deterministic ranking if it is
 unconfigured or a provider call fails. Configure one provider:
 
-- `LLM_BACKEND`: `gemini`, `mistral`, or `openrouter`
+- `LLM_BACKEND`: `openrouter` (default), `gemini`, or `mistral`
 - `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `MISTRAL_API_KEY`, or
   `OPENROUTER_API_KEY`: Credential for the selected backend
 - `GEMINI_MODEL` / `GEMINI_FALLBACK_MODEL`, `MISTRAL_MODEL` /
@@ -168,13 +172,14 @@ unconfigured or a provider call fails. Configure one provider:
   attribution metadata
 
 OpenRouter model IDs use `provider/model` slugs. Its default is
-`openrouter/auto`; set `OPENROUTER_MODEL` when you need a fixed model, cost, or
-data-policy choice. OpenRouter settings use process environment variables first
-and fall back to `.env` in the current working directory. See `.env.example` for
-complete examples.
+`nvidia/nemotron-3-ultra-550b-a55b:free`; set `OPENROUTER_MODEL` to override the
+model, cost, or data-policy choice. OpenRouter settings use process environment
+variables first and fall back to `.env` in the current working directory. See
+`.env.example` for complete examples.
 
-For GitHub Actions, store credentials as repository secrets and backend/model
-selection as repository variables. Never commit real keys to `.env` or source files.
+The production scheduled Worker will receive OpenRouter and Mailgun credentials
+as Cloudflare Worker secrets. The old GitHub Actions digest workflow has been
+removed. Never commit real keys to `.env` or source files.
 
 ## Development
 
@@ -199,11 +204,9 @@ The deployed interactive stack lives under [`cloudflare/`](cloudflare/):
 - `cloudflare/tests/` and `tests/test_cloudflare_worker.py`: frontend, proxy, and
   Worker behavior tests.
 
-Email-only authentication remains the deployed development integration path.
-Verified magic-link code is implemented and tested, and its D1 migration is
-applied, but it still needs provider configuration and Worker deployment. The D1 subscriber loader is
-also implemented and tested but needs production credentials and a successful
-scheduled run.
+Verified magic-link authentication, the D1 migration, and branded Mailgun
+delivery are deployed. The remaining backend milestone is the Cloudflare-native
+scheduled digest Worker.
 
 Run Cloudflare tests:
 
@@ -239,7 +242,7 @@ valencia-event-notifications/
 ├── specs/                    # Product and architecture contracts
 ├── targets/                  # Local artifacts (HTML/JSON dumps)
 ├── tests/                    # Test suite
-├── .github/workflows/        # GitHub Actions
+├── .github/workflows/        # Continuous integration
 ├── pyproject.toml            # Project configuration
 └── events.db                 # SQLite database
 ```
