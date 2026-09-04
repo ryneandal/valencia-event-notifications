@@ -64,8 +64,10 @@ The system deliberately separates subscriber and batch-processing state.
 
 Cloudflare D1 is the canonical production store for subscribers:
 
-- **`users`**: Verified email, serialized personalization profile, active/paused
-  status, and creation metadata.
+- **`users`**: Verified email, serialized personalization profile, verification
+  state, and creation metadata.
+- **`subscriptions`**: Reversible digest delivery state, separate from verified
+  account/session state.
 - **session and verification tables**: Worker-owned authentication state that is
   never exposed to the digest or an LLM.
 

@@ -58,7 +58,8 @@ allowance is not a safe production assumption for this workload.
 
 ### Later hardening
 
-- Pause/resume UX and complete account lifecycle.
+- Permanent account/profile deletion and the complete lifecycle beyond the PoC's
+  reversible pause/resume control.
 - Per-user event recommendation/send history.
 - Removal or explicit deprecation of the legacy FastAPI/SQLite onboarding path.
 - Operational alerts, retention policy, and recovery exercises.

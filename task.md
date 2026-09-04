@@ -34,7 +34,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-04.
     - [x] Verify the production D1 profile contains all six personalization fields
     - [x] Implement and test verified, single-use email magic links
     - [x] Configure Mailgun delivery, migrate D1, and deploy magic-link auth
-    - [ ] Add pause/resume subscription controls
+    - [x] Add pause/resume subscription controls
     - [ ] Deprecate the legacy FastAPI/SQLite onboarding path after Cloudflare parity is verified
     - [ ] Write `users_events` rows when digests are sent (table exists but is never populated)
 

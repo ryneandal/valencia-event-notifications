@@ -9,8 +9,9 @@ and Mailgun sandbox delivery are also deployed.
 
 The complete registration, magic-link, session, and profile round-trip is live.
 Production D1 contains a verified active profile with all six authoritative
-personalization keys. The remaining product work is the Cloudflare-native
-scheduled digest runtime and pause/unsubscribe support.
+personalization keys. Authenticated pause/resume controls are live and preserve
+the saved profile. The remaining product work is the Cloudflare-native
+scheduled digest runtime.
 
 The older FastAPI/SQLite onboarding implementation under `src/valencia_events/`
 is retained for now, but it is not the production web architecture. New web
@@ -182,7 +183,7 @@ credentials. Provider calls fall back to deterministic ranking when unavailable.
 - [x] Verify the live profile round-trip and exact D1 personalization shape.
 - [ ] Implement and deploy the Cron-triggered Cloudflare digest Worker.
 - [x] Retire the GitHub Actions digest schedule during Cloudflare migration.
-- [ ] Add pause/resume subscription controls.
+- [x] Add pause/resume subscription controls.
 - [ ] Record per-user send/relevance history after a digest succeeds.
 - [ ] Remove or clearly deprecate the legacy FastAPI onboarding surface after
   production parity is verified.

@@ -42,7 +42,8 @@ authoritative until deliberately revised.
 - [x] Serialize the profile into `preferences_blob` without lossy renaming.
 - [x] Support new registration, resuming an existing session, editing a saved
   profile, and an explicit completion state.
-- [ ] Support pausing/unsubscribing from the onboarding account UI.
+- [x] Support pausing/unsubscribing from the onboarding account UI. The live
+  account screen preserves the profile and session and can resume delivery.
 - [ ] Add field-level validation, accessible keyboard/focus behavior, responsive
   layouts, reduced-motion support, and useful API error states.
 - [x] Add deterministic frontend tests for profile construction and API payloads.
@@ -64,7 +65,8 @@ authoritative until deliberately revised.
 - [x] Add D1 event, recommendation, and delivery-history tables with idempotent
   writes and retention rules. The additive schema was applied to production D1
   and all four batch tables were verified on 2026-09-04.
-- [ ] Read active subscribers directly from the Worker's D1 binding.
+- [x] Read active subscribers directly from the Worker's D1 binding, excluding
+  both unverified and paused users without exporting account data.
 - [ ] Call OpenRouter from the scheduled Worker, defaulting to
   `nvidia/nemotron-3-ultra-550b-a55b:free`, and validate its JSON response.
 - [ ] Render and send digest email through Mailgun's HTTP API.
