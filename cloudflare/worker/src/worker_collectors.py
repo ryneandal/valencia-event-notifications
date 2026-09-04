@@ -279,8 +279,8 @@ async def collect_events(
     return matching, diagnostics
 
 
-async def persist_events(db: Any, events: list[dict[str, str]]) -> int:
-    """Idempotently persist collected normalized events and return unique count."""
+async def persist_events(db: Any, events: list[dict[str, str]]) -> list[str]:
+    """Idempotently persist collected events and return their unique keys."""
     keys: set[str] = set()
     for event in events:
         keys.add(
@@ -293,4 +293,4 @@ async def persist_events(db: Any, events: list[dict[str, str]]) -> int:
                 source=event["source"],
             )
         )
-    return len(keys)
+    return sorted(keys)

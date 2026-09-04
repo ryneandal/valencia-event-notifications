@@ -2,7 +2,7 @@ import asyncio
 import importlib.util
 import sqlite3
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -73,13 +73,14 @@ def database(user_count: int = 2) -> sqlite3.Connection:
 
 async def fake_collector(env, target_date):
     del env
+    original_start = target_date - timedelta(days=2)
     return (
         [
             {
-                "title": "Tomorrow at IVAM",
-                "start_at": f"{target_date.isoformat()}T11:00:00+02:00",
+                "title": "An exhibition continuing tomorrow",
+                "start_at": f"{original_start.isoformat()}T11:00:00+02:00",
                 "url": "https://example.com/ivam",
-                "description": "A family exhibition.",
+                "description": "A family exhibition active through tomorrow.",
                 "source": "fixture",
             }
         ],

@@ -15,7 +15,7 @@ from worker_storage import (
     finish_digest_run,
     get_or_create_digest_run,
     list_active_subscribers,
-    list_events_for_date,
+    list_events_by_keys,
     mark_delivery_failed,
     mark_delivery_sent,
     record_recommendation,
@@ -84,8 +84,8 @@ async def run_digest(
     )
     for diagnostic in source_diagnostics:
         log_event("digest.source.completed", correlation_id, **diagnostic)
-    await persist_events(db, collected)
-    events = await list_events_for_date(db, digest_date)
+    collected_keys = await persist_events(db, collected)
+    events = await list_events_by_keys(db, collected_keys)
     subscribers = await list_active_subscribers(db)
     if target_user_id is not None:
         subscribers = [

@@ -68,6 +68,28 @@ async def list_events_for_date(db: Any, digest_date: str) -> list[dict[str, Any]
     return result_rows(result)
 
 
+async def list_events_by_keys(db: Any, keys: list[str]) -> list[dict[str, Any]]:
+    """Return the exact unique event batch selected by the collectors."""
+    unique_keys = sorted(set(keys))
+    if not unique_keys:
+        return []
+
+    placeholders = ", ".join("?" for _ in unique_keys)
+    result = await (
+        db.prepare(
+            f"""
+            SELECT id, event_key, title, start_at, url, description, source
+            FROM events
+            WHERE event_key IN ({placeholders})
+            ORDER BY start_at, title, event_key
+            """
+        )
+        .bind(*unique_keys)
+        .all()
+    )
+    return result_rows(result)
+
+
 async def upsert_event(
     db: Any,
     *,

@@ -178,7 +178,8 @@ def test_persist_events_deduplicates_in_d1():
         "source": "fixture",
     }
 
-    unique = asyncio.run(collectors.persist_events(db, [event, event]))
+    keys = asyncio.run(collectors.persist_events(db, [event, event]))
 
-    assert unique == 1
+    stored_key = connection.execute("SELECT event_key FROM events").fetchone()[0]
+    assert keys == [stored_key]
     assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1

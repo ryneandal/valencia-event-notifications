@@ -98,6 +98,32 @@ def test_event_upsert_has_stable_identity_and_deduplicates():
     assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
 
 
+def test_event_batch_lookup_uses_collector_keys_not_original_start_date():
+    connection = database()
+    db = SQLiteD1(connection)
+    ongoing = {
+        "title": "Ongoing exhibition",
+        "start_at": "2026-09-03T11:00:00+02:00",
+        "url": "https://example.com/ongoing",
+        "description": "Open through the digest date.",
+        "source": "fixture",
+    }
+    unrelated = {
+        "title": "Unrelated event",
+        "start_at": "2026-09-05T20:00:00+02:00",
+        "url": "https://example.com/unrelated",
+        "description": "Not selected by this collection run.",
+        "source": "fixture",
+    }
+    ongoing_key = asyncio.run(storage.upsert_event(db, **ongoing))
+    asyncio.run(storage.upsert_event(db, **unrelated))
+
+    events = asyncio.run(storage.list_events_by_keys(db, [ongoing_key, ongoing_key]))
+
+    assert [event["title"] for event in events] == ["Ongoing exhibition"]
+    assert asyncio.run(storage.list_events_by_keys(db, [])) == []
+
+
 def test_active_subscriber_selection_excludes_paused_and_unverified_users():
     connection = database()
     db = SQLiteD1(connection)

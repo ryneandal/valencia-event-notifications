@@ -169,7 +169,10 @@ results, and diagnostics record only source names, counts, and sanitized error
 codes. City events are eligible on their start date, throughout active ranges up
 to 14 days, or on the closing day of a longer run; this retains useful festivals
 and final-chance exhibitions without repeating generic year-long programme pages
-every day. Operators must continue to honor each publisher's robots policy and
+every day. After persistence, the orchestrator reloads the exact collector batch
+by stable event keys rather than filtering on the events' original start dates;
+ongoing events therefore retain accurate source dates without disappearing from
+the digest. Operators must continue to honor each publisher's robots policy and
 avoid raising the daily request frequency without review.
 
 ## Local development
