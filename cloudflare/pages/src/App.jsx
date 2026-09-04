@@ -337,6 +337,11 @@ export default function App() {
             ) : (
               <button className="next-button" onClick={() => { setCompletion(null); setStep(1); }} type="button">Edit my profile</button>
             )}
+            {currentUser && subscribed ? (
+              <button className="back-button" disabled={busy} onClick={previewDigest} type="button">
+                {busy ? 'Preparing…' : 'Preview tomorrow safely'}
+              </button>
+            ) : null}
             {currentUser ? (
               <button
                 className="back-button"
@@ -345,11 +350,6 @@ export default function App() {
                 type="button"
               >
                 {busy ? 'Updating…' : subscribed ? 'Pause email digest' : 'Resume email digest'}
-              </button>
-            ) : null}
-            {currentUser && subscribed ? (
-              <button className="back-button" disabled={busy} onClick={previewDigest} type="button">
-                {busy ? 'Preparing…' : 'Preview tomorrow safely'}
               </button>
             ) : null}
             {currentUser ? <button className="text-button" disabled={busy} onClick={signOut} type="button">Sign out</button> : null}

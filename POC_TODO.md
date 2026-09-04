@@ -48,6 +48,9 @@ authoritative until deliberately revised.
   layouts, reduced-motion support, and useful API error states.
   - [x] Repair the registered-account completion layout so its heading, status,
     actions, and notes stack vertically and remain centered while actions wrap.
+  - [x] Separate registered-account actions into a two-column hierarchy: profile
+    editing and safe preview first, then subscription state and sign-out; collapse
+    to one action per row on small screens.
 - [x] Add deterministic frontend tests for profile construction and API payloads.
 - [x] Build the React SPA for the existing Pages project.
 - [x] Deploy the React SPA to the existing Pages project from the Git-connected
@@ -159,6 +162,9 @@ authoritative until deliberately revised.
     events with their truthful original start timestamps. The digest now reloads
     the collector-selected batch by stable event keys, preventing active ranges
     from being discarded by a second start-date filter.
+  - [x] Authenticated production preview (2026-09-04): the registered user
+    confirmed the safe preview found two events for 2026-09-05 and sent no email,
+    proving the collection, D1 handoff, targeting, ranking, and rendering path.
 
 ## Post-PoC
 
