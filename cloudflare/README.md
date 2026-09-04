@@ -6,7 +6,9 @@ and personalization:
 - `pages/src/`: React/Vite single-page application source.
 - `pages/public/`: static assets and Vite build output deployed by Cloudflare
   Pages.
-- `pages/functions/api/[[path]].js`: same-origin `/api/*` proxy to the Worker.
+- `../functions/api/[[path]].js`: same-origin `/api/*` proxy to the Worker. It
+  lives at the repository root because the Pages Git integration uses `/` as
+  its root directory.
 - `worker/src/`: Python Cloudflare Worker API.
 - `worker/src/schema.sql`: D1 schema.
 - `terraform/`: optional Cloudflare resource configuration. Worker code remains

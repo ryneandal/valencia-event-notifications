@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { onRequest, proxyApiRequest } from '../pages/functions/api/[[path]].js';
+import { onRequest, proxyApiRequest } from '../../functions/api/[[path]].js';
 
 describe('Pages API proxy', () => {
   test('forwards the path, query, method, headers, and body to the Worker', async () => {

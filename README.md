@@ -193,7 +193,8 @@ The deployed interactive stack lives under [`cloudflare/`](cloudflare/):
   build destination.
 - `cloudflare/pages/src/`: tested React personalization onboarding SPA, pending
   production deployment.
-- `cloudflare/pages/functions/`: same-origin `/api/*` Worker proxy.
+- `functions/`: same-origin `/api/*` Worker proxy discovered from the Pages
+  project's repository root.
 - `cloudflare/worker/src/`: deployed Python Worker API with canonical D1-backed
   subscriber/profile/session storage.
 - `cloudflare/design-poc/`: approved Mediterranean/València visual reference.
