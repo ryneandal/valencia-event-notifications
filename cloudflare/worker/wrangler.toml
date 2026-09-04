@@ -3,6 +3,10 @@ main = "src/index.py"
 compatibility_date = "2026-09-04"
 compatibility_flags = ["python_workers", "disable_python_external_sdk"]
 
+[triggers]
+# Cron expressions are UTC: 08:00 UTC is 09:00 CET / 10:00 CEST in València.
+crons = ["0 8 * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "valencia-events"

@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - local pytest fallback
 
 from worker_app import handle_request
 from worker_http import AppResponse
+from worker_schedule import handle_scheduled
 
 
 def _to_worker_response(response: AppResponse) -> Any:
@@ -22,3 +23,6 @@ def _to_worker_response(response: AppResponse) -> Any:
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         return _to_worker_response(await handle_request(request, self.env))
+
+    async def scheduled(self, controller, env, ctx):
+        await handle_scheduled(controller, env, ctx)

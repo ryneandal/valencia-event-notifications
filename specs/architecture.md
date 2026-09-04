@@ -20,7 +20,7 @@ Browser
 Scheduled digest plane [upcoming]
 =================================
 Cloudflare Cron Trigger
-  -> scheduled Cloudflare Worker
+  -> scheduled handler on the existing Python Cloudflare Worker
   -> fetch and normalize event sources
   -> D1 event and delivery history
   -> active D1 subscribers and their profiles

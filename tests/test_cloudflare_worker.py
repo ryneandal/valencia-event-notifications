@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import json
 import sqlite3
 import sys
 from datetime import UTC, datetime, timedelta
@@ -28,6 +29,7 @@ from worker_email import (  # noqa: E402
     mailgun_authorization,
 )
 from worker_runtime import request_path  # noqa: E402
+from worker_schedule import handle_scheduled  # noqa: E402
 
 
 class Headers(dict):
@@ -550,3 +552,33 @@ def test_schema_migration_is_additive_and_idempotent():
         )
     }
     assert {"users", "sessions", "magic_links"} <= tables
+
+
+def test_scheduled_handler_emits_safe_scaffold_event(capsys):
+    controller = SimpleNamespace(cron="0 8 * * *", scheduledTime=1_788_508_800_000)
+
+    asyncio.run(handle_scheduled(controller, object(), object()))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "cron.expression": "0 8 * * *",
+        "cron.scheduled_time_ms": 1_788_508_800_000,
+        "event.name": "digest.schedule.triggered",
+        "pipeline.state": "scaffolded",
+    }
+
+
+def test_worker_scheduled_entrypoint_delegates(monkeypatch):
+    calls = []
+
+    async def fake_handle_scheduled(controller, runtime_env, ctx):  # noqa: ANN001
+        calls.append((controller, runtime_env, ctx))
+
+    monkeypatch.setattr(worker, "handle_scheduled", fake_handle_scheduled)
+    controller = SimpleNamespace(cron="0 8 * * *", scheduledTime=0)
+    runtime_env = object()
+    ctx = object()
+
+    asyncio.run(worker.Default().scheduled(controller, runtime_env, ctx))
+
+    assert calls == [(controller, runtime_env, ctx)]

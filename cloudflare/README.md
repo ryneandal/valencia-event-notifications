@@ -126,6 +126,12 @@ default backend/model are `openrouter` and
 for the local migration reference is documented in the root
 [`README.md`](../README.md) and `.env.example`.
 
+For the PoC, the interactive API and daily scheduler share the existing Python
+Worker and D1 binding. This keeps deployment and secrets in one place while the
+subscriber count is small. The configured `0 8 * * *` trigger runs at 08:00 UTC,
+which is 09:00 CET or 10:00 CEST in València. Move per-subscriber work to a Queue
+consumer only when fan-out or execution limits justify the additional component.
+
 ## Local development
 
 Install and run the SPA from the repository root:
@@ -150,7 +156,9 @@ the local D1 database, and start the Worker:
 cd cloudflare
 npx wrangler d1 execute valencia-events --local \
   --file=worker/src/schema.sql --config=worker/wrangler.toml
-npx wrangler dev --config=worker/wrangler.toml
+npx wrangler dev --test-scheduled --config=worker/wrangler.toml
+# In another terminal, invoke the local scheduled handler:
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?format=json"
 ```
 
 Configure the Pages Function to proxy to the local Worker when exercising the
@@ -187,6 +195,10 @@ The real D1 database ID is checked into `worker/wrangler.toml`; treat changes to
 that binding as production infrastructure changes. Terraform may own the Pages,
 D1, domain, and route resources, but it intentionally does not upload Worker
 code.
+
+Deploying `worker/wrangler.toml` also updates the daily Cron Trigger. Cloudflare
+Cron changes can take several minutes to propagate. Confirm the trigger and its
+first structured `digest.schedule.triggered` log event after deployment.
 
 Before deploying the magic-link implementation, configure `APP_BASE_URL`,
 `MAILGUN_DOMAIN`, `MAILGUN_REGION`, and `EMAIL_FROM`, then store
