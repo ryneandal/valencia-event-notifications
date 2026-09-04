@@ -82,6 +82,10 @@ authoritative until deliberately revised.
 - [x] Deploy the verified magic-link Worker with Mailgun configuration.
 - [x] Deploy the compatible React SPA and repository-root Pages Function proxy
   from the Git-connected `main` production branch.
+- [x] Format the verification email with the Brisa visual system, accessible
+  fallback text, a prominent call to action, and a visible fallback URL.
+- [x] Generate and install a placeholder Brisa logo for the SPA header,
+  verification email, favicon, and Apple touch icon.
 
 ## Track D — Digest completion
 

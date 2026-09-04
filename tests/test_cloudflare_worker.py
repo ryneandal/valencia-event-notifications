@@ -22,6 +22,7 @@ spec.loader.exec_module(worker)
 from worker_auth import sha256_hex  # noqa: E402
 from worker_email import (  # noqa: E402
     DeliveryConfigurationError,
+    brand_asset_url,
     magic_link_message,
     mailgun_api_url,
     mailgun_authorization,
@@ -467,7 +468,16 @@ def test_mailgun_request_helpers():
         'https://events.example.com/auth/verify?token=a&next="setup"',
     )
     assert message["to"] == "reader@example.com"
+    assert message["subject"] == "Your Brisa sign-in link for València"
+    assert "Your next day in València is waiting" in message["text"]
+    assert "<!doctype html>" in message["html"]
+    assert 'role="presentation"' in message["html"]
+    assert "Continue to Brisa" in message["html"]
     assert "a&amp;next=&quot;setup&quot;" in message["html"]
+    assert 'src="https://events.example.com/brand/brisa-mark.png"' in message["html"]
+    assert brand_asset_url("https://events.example.com/auth/verify?token=a") == (
+        "https://events.example.com/brand/brisa-mark.png"
+    )
 
     with pytest.raises(DeliveryConfigurationError, match="MAILGUN_REGION"):
         mailgun_api_url("sandbox.example.mailgun.org", "apac")

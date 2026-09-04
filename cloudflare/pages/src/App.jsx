@@ -66,7 +66,9 @@ function StoryPanel() {
   return (
     <section className="story-panel" aria-label="About Brisa">
       <a className="brand" href="#onboarding" aria-label="Brisa onboarding home">
-        <span className="brand-mark" aria-hidden="true">☼</span>
+        <span className="brand-mark" aria-hidden="true">
+          <img src="/brand/brisa-mark.png" alt="" width="37" height="37" />
+        </span>
         <span>BRISA</span>
       </a>
       <div className="story-copy">
