@@ -89,6 +89,9 @@ def test_openrouter_ranking_uses_default_model_and_privacy_bounded_payload():
     assert result.events[0]["relevance_reason"] == "Great art fit"
     request = captured[0]
     assert request["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert request["response_format"] == {"type": "json_object"}
+    assert request["plugins"] == [{"id": "response-healing"}]
+    assert "provider" not in request
     request_text = json.dumps(request)
     assert "reader@example.com" not in request_text
     assert '"id": 99' not in request_text
@@ -136,13 +139,54 @@ def test_malformed_or_unknown_provider_output_uses_deterministic_fallback():
         assert result.error_code
 
 
+def test_malformed_provider_output_is_retried_once_before_fallback():
+    responses = [
+        {"choices": [{"message": {"content": "not json"}}]},
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"recommendations":['
+                            '{"event_key":"event-first","reason":"Recovered art fit"}'
+                            "]}"
+                        )
+                    }
+                }
+            ]
+        },
+    ]
+    calls = 0
+
+    async def flaky_fetch(body):
+        nonlocal calls
+        del body
+        response = responses[calls]
+        calls += 1
+        return response
+
+    result = asyncio.run(
+        ranking.rank_events(
+            SimpleNamespace(OPENROUTER_FETCH=flaky_fetch), profile_blob(), events()
+        )
+    )
+
+    assert calls == 2
+    assert result.used_fallback is False
+    assert result.model_id == ranking.DEFAULT_MODEL
+    assert result.events[0]["relevance_reason"] == "Recovered art fit"
+
+
 def test_missing_key_provider_failure_and_invalid_profile_fail_safe():
+    provider_calls = 0
     missing_key = asyncio.run(
         ranking.rank_events(SimpleNamespace(), profile_blob(), events())
     )
 
     async def failed_fetch(body):
+        nonlocal provider_calls
         del body
+        provider_calls += 1
         raise RuntimeError("http_429")
 
     provider_failure = asyncio.run(
@@ -156,6 +200,7 @@ def test_missing_key_provider_failure_and_invalid_profile_fail_safe():
 
     assert missing_key.error_code == "missing_api_key"
     assert provider_failure.error_code == "http_429"
+    assert provider_calls == 1
     assert invalid_profile.error_code == "incomplete_profile"
     assert all(
         result.used_fallback

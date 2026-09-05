@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import json
 import sqlite3
 import sys
 from datetime import UTC, datetime, timedelta
@@ -127,6 +128,42 @@ def test_dry_run_renders_every_user_without_calling_delivery():
     assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
     assert connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 2
     assert connection.execute("SELECT COUNT(*) FROM deliveries").fetchone()[0] == 0
+
+
+def test_dry_run_reports_only_aggregate_fallback_reasons():
+    connection = database(user_count=1)
+
+    async def fallback_ranker(env, preferences_blob, ranked_events):
+        del env, preferences_blob
+        return ranking_module.Ranking(
+            [
+                {
+                    **ranked_events[0],
+                    "relevance_reason": "A deterministic fallback selection.",
+                }
+            ],
+            "deterministic",
+            True,
+            "missing_json_object",
+        )
+
+    summary = asyncio.run(
+        orchestrator.run_digest(
+            SimpleNamespace(
+                DB=SQLiteD1(connection),
+                COLLECT_EVENTS=fake_collector,
+                RANK_EVENTS=fallback_ranker,
+                EMAIL_FROM="Brisa <hello@example.com>",
+                APP_BASE_URL="https://events.example.com",
+            ),
+            now=datetime(2026, 9, 4, 8, tzinfo=UTC),
+            dry_run=True,
+        )
+    )
+
+    assert summary["fallback_count"] == 1
+    assert summary["fallback_reasons"] == {"missing_json_object": 1}
+    assert "reader-0@example.com" not in json.dumps(summary)
 
 
 def test_live_retry_isolates_failure_and_never_resends_success(capsys):

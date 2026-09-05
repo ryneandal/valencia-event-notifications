@@ -7,6 +7,16 @@ from worker_runtime import env_value, to_python
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 RANK_TIMEOUT_MS = 30_000
+RANK_ATTEMPTS = 2
+NON_RETRYABLE_ERROR_CODES = {
+    "missing_api_key",
+    "http_400",
+    "http_401",
+    "http_403",
+    "http_404",
+    "http_422",
+    "http_429",
+}
 PROFILE_FIELDS = (
     "audience",
     "location_scope",
@@ -56,13 +66,15 @@ def openrouter_payload(
         for event in events
     ]
     instructions = (
-        "Rank up to 8 events for this profile. Return JSON only as "
+        "Rank up to 8 events for this profile. Return one JSON object only as "
         '{"recommendations":[{"event_key":"...","reason":"..."}]}. '
         "Use only supplied event_key values. Keep each reason under 180 characters."
     )
     return {
         "model": model_id,
         "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "plugins": [{"id": "response-healing"}],
         "messages": [
             {"role": "system", "content": instructions},
             {
@@ -88,7 +100,10 @@ def _extract_json(content: str) -> dict[str, Any]:
     end = stripped.rfind("}")
     if start < 0 or end < start:
         raise ValueError("missing_json_object")
-    value = json.loads(stripped[start : end + 1])
+    try:
+        value = json.loads(stripped[start : end + 1])
+    except json.JSONDecodeError as exc:
+        raise ValueError("invalid_ranking_json") from exc
     if not isinstance(value, dict):
         raise ValueError("invalid_ranking_shape")
     return value
@@ -116,7 +131,7 @@ def validate_ranking(
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("missing_reason")
         seen.add(key)
-        ranked.append({**known[key], "relevance_reason": reason.strip()[:240]})
+        ranked.append({**known[key], "relevance_reason": reason.strip()[:180]})
     return ranked
 
 
@@ -173,7 +188,10 @@ async def _call_openrouter(env: Any, body: dict[str, Any]) -> dict[str, Any]:
     response = await fetch(OPENROUTER_URL, options)
     if not bool(response.ok):
         raise RuntimeError(f"http_{int(response.status)}")
-    value = to_python(await response.json())
+    try:
+        value = to_python(await response.json())
+    except Exception as exc:
+        raise RuntimeError("invalid_provider_json") from exc
     if not isinstance(value, dict):
         raise RuntimeError("invalid_provider_response")
     return value
@@ -213,16 +231,21 @@ async def rank_events(
         )
 
     model_id = str(env_value(env, "OPENROUTER_MODEL", DEFAULT_MODEL)).strip()
-    try:
-        response = await _call_openrouter(
-            env, openrouter_payload(profile, events, model_id)
-        )
-        ranked = validate_ranking(_response_content(response), events)
-        return Ranking(ranked, model_id, False)
-    except Exception as error:
-        return Ranking(
-            deterministic_ranking(events),
-            "deterministic",
-            True,
-            _error_code(error),
-        )
+    payload = openrouter_payload(profile, events, model_id)
+    last_error: Exception | None = None
+    for _attempt in range(RANK_ATTEMPTS):
+        try:
+            response = await _call_openrouter(env, payload)
+            ranked = validate_ranking(_response_content(response), events)
+            return Ranking(ranked, model_id, False)
+        except Exception as error:
+            last_error = error
+            if _error_code(error) in NON_RETRYABLE_ERROR_CODES:
+                break
+
+    return Ranking(
+        deterministic_ranking(events),
+        "deterministic",
+        True,
+        _error_code(last_error or RuntimeError("provider_failure")),
+    )

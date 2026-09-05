@@ -137,11 +137,25 @@ provider/model are OpenRouter and
 for the local migration reference is documented in the root
 [`README.md`](../README.md) and `.env.example`.
 
+The Worker requests non-streaming `json_object` output and enables OpenRouter's
+`response-healing` plugin. Provider or validation failures receive one bounded
+retry, except authentication, client, routing, and rate-limit errors. A final
+failure uses deterministic ranking and reports only aggregate sanitized reason
+codes; provider bodies and profile values are never logged. Do not set
+`provider.require_parameters` for the default free Nemotron route: it does not
+advertise structured-output support and becomes unroutable when that constraint
+is required.
+
 For the PoC, the interactive API and daily scheduler share the existing Python
 Worker and D1 binding. This keeps deployment and secrets in one place while the
 subscriber count is small. The configured `0 8 * * *` trigger runs at 08:00 UTC,
 which is 09:00 CET or 10:00 CEST in València. Move per-subscriber work to a Queue
 consumer only when fan-out or execution limits justify the additional component.
+Free Workers allow only 10 ms of CPU for both HTTP and Cron invocations. An HTTP
+request may remain open while awaiting network I/O, but that unlimited wall time
+does not increase its CPU allowance; Cron invocations instead have a 15-minute
+wall-time ceiling. Confirm Workers Paid before relying on Python parsing in the
+daily schedule. Current limits: <https://developers.cloudflare.com/workers/platform/limits/>.
 
 ### D1 batch-processing state
 

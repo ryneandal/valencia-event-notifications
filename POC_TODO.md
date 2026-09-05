@@ -73,7 +73,9 @@ authoritative until deliberately revised.
 - [x] Read active subscribers directly from the Worker's D1 binding, excluding
   both unverified and paused users without exporting account data.
 - [x] Call OpenRouter from the scheduled Worker, defaulting to
-  `nvidia/nemotron-3-ultra-550b-a55b:free`, and validate its JSON response.
+  `nvidia/nemotron-3-ultra-550b-a55b:free`, request JSON-object output with
+  response healing, retry transient/provider-validation failure once, and
+  validate its JSON response before accepting a ranking.
 - [x] Store `OPENROUTER_API_KEY` as an encrypted production Worker secret; only
   the secret name was verified and no value was logged.
 - [x] Render digest email and implement bounded Mailgun HTTP delivery. Production
@@ -82,9 +84,9 @@ authoritative until deliberately revised.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
 - [x] Deploy and validate the Cron-triggered Worker. Current production version
-  `95bc362a-e30c-485f-9b96-f7d248008c5c` is healthy, has the encrypted OpenRouter
+  `92e8bfb4-952e-45e5-97a1-199bdab8b5f9` is healthy, has the encrypted OpenRouter
   secret, keeps delivery disabled, and is registered with `0 8 * * *` UTC as of
-  2026-09-04.
+  2026-09-05.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 
@@ -141,16 +143,16 @@ authoritative until deliberately revised.
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-04): 90 Python tests and 10 frontend tests
+  - [x] Local verification (2026-09-05): 92 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (75.61 KiB upload, 17.48 KiB gzip).
+    Wrangler Worker bundle dry-run pass (76.54 KiB upload, 17.73 KiB gzip).
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
   - [x] Production Worker smoke (2026-09-04): version
-    `95bc362a-e30c-485f-9b96-f7d248008c5c` starts without external tzdata,
+    `92e8bfb4-952e-45e5-97a1-199bdab8b5f9` starts without external tzdata,
     `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
     Cron delivery remains disabled.
   - [x] Live source probe (2026-09-04): the City agenda parsed 75 records and the
@@ -165,6 +167,9 @@ authoritative until deliberately revised.
   - [x] Authenticated production preview (2026-09-04): the registered user
     confirmed the safe preview found two events for 2026-09-05 and sent no email,
     proving the collection, D1 handoff, targeting, ranking, and rendering path.
+    D1 showed that run used deterministic fallback. OpenRouter hardening was
+    deployed on 2026-09-05 and awaits one authenticated preview confirmation
+    showing the named Nemotron model instead of fallback.
 
 ## Post-PoC
 

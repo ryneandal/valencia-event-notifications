@@ -106,6 +106,7 @@ async def run_digest(
         "skipped_count": 0,
         "failure_count": 0,
         "fallback_count": 0,
+        "fallback_reasons": {},
     }
 
     ranker = env_value(env, "RANK_EVENTS", rank_events)
@@ -116,10 +117,13 @@ async def run_digest(
             ranking = await ranker(env, subscriber.get("preferences_blob"), events)
             if ranking.used_fallback:
                 summary["fallback_count"] += 1
+                error_code = ranking.error_code or "no_candidates"
+                fallback_reasons = summary["fallback_reasons"]
+                fallback_reasons[error_code] = fallback_reasons.get(error_code, 0) + 1
                 log_event(
                     "digest.ranking.fallback",
                     correlation_id,
-                    error_code=ranking.error_code or "no_candidates",
+                    error_code=error_code,
                 )
             if not ranking.events:
                 summary["skipped_count"] += 1

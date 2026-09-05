@@ -285,7 +285,7 @@ export default function App() {
       setPreview(summary);
       setNotice(
         summary.event_count
-          ? `Preview ready: ${summary.event_count} event${summary.event_count === 1 ? '' : 's'} found for tomorrow. No email was sent.`
+          ? `Preview ready: ${summary.event_count} event${summary.event_count === 1 ? '' : 's'} found for tomorrow.${summary.fallback_count ? ' Ranking used the safe deterministic fallback.' : ' OpenRouter ranking completed.'} No email was sent.`
           : 'Preview completed safely, but the current sources did not find an event for tomorrow. No email was sent.'
       );
     } catch (requestError) {

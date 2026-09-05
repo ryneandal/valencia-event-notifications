@@ -32,8 +32,12 @@ The existing Python/Scrapy/SQLite command remains useful for local development
 and as migration reference code. The GitHub Actions digest schedule is legacy
 infrastructure and is not part of the target production platform. The
 Cloudflare runtime plan must provide enough Cron CPU for parsing and
-orchestration; network wait time does not consume CPU, but the Free plan's CPU
-allowance is not a safe production assumption for this workload.
+orchestration. Free Workers currently allow 10 ms of CPU for both HTTP and Cron
+invocations. HTTP wall time can continue while a client remains connected and
+the Worker awaits I/O, while Cron has a 15-minute wall-time ceiling; neither
+changes the 10 ms Free CPU allowance. The Free plan is therefore not a safe
+production assumption for this Python workload. Confirm Workers Paid before
+enabling scheduled delivery.
 
 ## Delivery state
 
@@ -104,8 +108,11 @@ tooling and cannot read production subscribers.
 
 ## Failure behavior
 
-- If the LLM is missing or fails, deterministic ranking keeps the digest path
-  available.
+- OpenRouter requests JSON-object output with response healing. A transient
+  provider or validation failure is retried once; authentication, client,
+  routing, and rate-limit failures are not retried.
+- If the LLM is missing or both attempts fail, deterministic ranking keeps the
+  digest path available and exposes only aggregate sanitized failure codes.
 - If one event source fails, successful source results continue and a sanitized
   per-source diagnostic is recorded.
 - If D1 fails, the scheduled Worker fails closed and must not use a fallback
