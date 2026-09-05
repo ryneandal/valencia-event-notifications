@@ -29,7 +29,7 @@ variable "pages_production_branch" {
 variable "pages_build_command" {
   description = "Build command for Pages"
   type        = string
-  default     = "pnpm --dir cloudflare/pages install && pnpm --dir cloudflare/pages build"
+  default     = "pnpm --dir cloudflare install --frozen-lockfile && pnpm --dir cloudflare build"
 }
 
 variable "pages_destination_dir" {
@@ -42,6 +42,12 @@ variable "pages_root_dir" {
   description = "Root dir for Pages"
   type        = string
   default     = "/"
+}
+
+variable "pages_functions_compatibility_date" {
+  description = "Compatibility date shared by production and preview Pages Functions"
+  type        = string
+  default     = "2026-09-04"
 }
 
 variable "pages_custom_domain" {

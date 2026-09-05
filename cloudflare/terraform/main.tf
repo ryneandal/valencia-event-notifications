@@ -33,7 +33,7 @@ resource "cloudflare_pages_project" "dashboard" {
           value = var.worker_custom_domain != "" ? "https://${var.worker_custom_domain}" : ""
         }
       }
-      compatibility_date = "2026-02-25"
+      compatibility_date = var.pages_functions_compatibility_date
     }
     preview = {
       d1_databases = {
@@ -47,7 +47,7 @@ resource "cloudflare_pages_project" "dashboard" {
           value = tostring(var.session_ttl_hours)
         }
       }
-      compatibility_date = "2026-02-25"
+      compatibility_date = var.pages_functions_compatibility_date
     }
   }
 }
@@ -73,9 +73,8 @@ resource "cloudflare_workers_route" "api" {
 resource "cloudflare_workers_custom_domain" "api" {
   count = var.worker_custom_domain != "" ? 1 : 0
 
-  account_id  = var.account_id
-  zone_id     = var.zone_id
-  hostname    = var.worker_custom_domain
-  service     = var.worker_service_name
-  environment = "production"
+  account_id = var.account_id
+  zone_id    = var.zone_id
+  hostname   = var.worker_custom_domain
+  service    = var.worker_service_name
 }

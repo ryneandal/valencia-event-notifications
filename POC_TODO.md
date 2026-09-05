@@ -153,6 +153,7 @@ authoritative until deliberately revised.
   local bearer-session code, and unpopulated `users_events` table.
 - [x] Ensure all implementation changes are committed and pushed so a future
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
+- [x] [RYN-131](https://linear.app/ryneandal/issue/RYN-131/align-terraform-with-the-deployed-pages-and-worker-configuration): align Terraform's Pages build and compatibility settings with the deployed architecture.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
   - [x] Local verification (2026-09-05): 94 Python tests and 10 frontend tests

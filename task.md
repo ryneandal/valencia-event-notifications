@@ -21,8 +21,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] `ivam_spider.py`
     - [x] `valencia_secreta_spider.py`
     - [x] `valenciabonita_spider.py`
-    - [ ] `sala_russafa_spider.py` (fixture `tests/fixtures/salarussafa.html` already exists)
-    - [ ] Decide whether item validation lives in the Scrapy pipeline or `source_filters.py`; remove the unused path (`pipelines.py` is currently a stub, output flows through `scrapy -O` JSONL)
+    - [ ] [RYN-135](https://linear.app/ryneandal/issue/RYN-135/resolve-the-legacy-sala-russafa-scraper-and-validation-pipeline): decide whether to retain `sala_russafa_spider.py` and consolidate the unused Scrapy validation path
     - [x] Port the retained sources to Worker-compatible asynchronous collectors
       for the Cloudflare production runtime
 
@@ -60,14 +59,14 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
       production sending remains disabled pending the controlled smoke
     - [x] Add a safe authenticated dry-run path and per-user failure isolation
     - [x] Disable and remove the legacy GitHub Actions digest schedule
-    - [ ] Add missing Worker tests: login, logout, `/api/health`, inactive-user login
+    - [ ] [RYN-132](https://linear.app/ryneandal/issue/RYN-132/add-inactive-subscriber-login-regression-coverage): add inactive-subscriber login coverage; login, logout, and `/api/health` are already covered
     - [x] Add `wrangler deploy --dry-run` validation to CI and rename the
       Cloudflare job for frontend + Worker scope
-    - [ ] Align config: wrangler vs Terraform `compatibility_date`; fix Terraform Pages build command (`pages/` is static, has no `package.json`)
+    - [x] [RYN-131](https://linear.app/ryneandal/issue/RYN-131/align-terraform-with-the-deployed-pages-and-worker-configuration): align Terraform compatibility settings and the Git-connected Pages build command
 
 - [ ] **Testing**
-    - [ ] Add more unit tests for corner cases in normalization
-    - [ ] Add integration tests for the full pipeline (scrape → normalize → store → digest)
+    - [ ] [RYN-133](https://linear.app/ryneandal/issue/RYN-133/expand-normalization-boundary-and-malformed-input-tests): add focused normalization boundary and malformed-input tests
+    - [ ] [RYN-134](https://linear.app/ryneandal/issue/RYN-134/add-an-offline-full-digest-pipeline-integration-test): add an offline full-pipeline integration test
 
 - [ ] **Post-PoC enhancements**
     - [ ] [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): generate privacy-bounded,
