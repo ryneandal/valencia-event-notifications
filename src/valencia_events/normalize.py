@@ -10,10 +10,16 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 import pytz
+from pytz.exceptions import InvalidTimeError
 
 from .models import Event
 
 VALENCIA_TZ = pytz.timezone("Europe/Madrid")
+
+
+class DateParseError(ValueError):
+    """Raised when an event timestamp cannot be interpreted without guessing."""
+
 
 # Spanish month mapping
 SPANISH_MONTHS = {
@@ -93,8 +99,13 @@ def parse_datetime(date_string: str) -> datetime:
 
     Returns:
         Timezone-aware datetime in Europe/Madrid timezone
+
+    Raises:
+        DateParseError: If the value is malformed or names an ambiguous or
+            nonexistent Europe/Madrid local time.
     """
     date_string = date_string.strip()
+    original_date_string = date_string
     lower_str = date_string.lower()
 
     # 1. Handle ranges like "From 28/11/2025 to ..." and "Del SA 28.02.26 ..."
@@ -135,13 +146,16 @@ def parse_datetime(date_string: str) -> datetime:
             year_num = int(year)
             if year_num < 100:
                 year_num += 2000
-            dt = datetime(
-                year_num,
-                int(month),
-                int(day),
-                int(hour) if hour else 12,
-                int(minute) if minute else 0,
-            )
+            try:
+                dt = datetime(
+                    year_num,
+                    int(month),
+                    int(day),
+                    int(hour) if hour else 12,
+                    int(minute) if minute else 0,
+                )
+            except ValueError:
+                pass
 
     # 5. Try Spanish format "12 de octubre de 2025" or with time
     if not dt:
@@ -154,13 +168,16 @@ def parse_datetime(date_string: str) -> datetime:
                 if match:
                     d, m_name, y, h, minute = match.groups()
                     if m_name == month_name:
-                        dt = datetime(
-                            int(y),
-                            month_num,
-                            int(d),
-                            int(h) if h else 12,
-                            int(minute) if minute else 0,
-                        )
+                        try:
+                            dt = datetime(
+                                int(y),
+                                month_num,
+                                int(d),
+                                int(h) if h else 12,
+                                int(minute) if minute else 0,
+                            )
+                        except ValueError:
+                            pass
                 break
 
     # 6. Try abbreviated Spanish dates (e.g. "21 feb. 2026" or with time)
@@ -172,13 +189,16 @@ def parse_datetime(date_string: str) -> datetime:
         if abbr_match:
             d, month_abbr, y, hour, minute = abbr_match.groups()
             if month_abbr in SPANISH_MONTHS_ABBR:
-                dt = datetime(
-                    int(y),
-                    SPANISH_MONTHS_ABBR[month_abbr],
-                    int(d),
-                    int(hour) if hour else 12,
-                    int(minute) if minute else 0,
-                )
+                try:
+                    dt = datetime(
+                        int(y),
+                        SPANISH_MONTHS_ABBR[month_abbr],
+                        int(d),
+                        int(hour) if hour else 12,
+                        int(minute) if minute else 0,
+                    )
+                except ValueError:
+                    pass
 
     # 7. Try RFC 822 (common in RSS pubDate fields)
     if not dt:
@@ -198,7 +218,12 @@ def parse_datetime(date_string: str) -> datetime:
     if dt:
         # Assign timezone if naive, otherwise convert
         if dt.tzinfo is None:
-            return VALENCIA_TZ.localize(dt)
+            try:
+                return VALENCIA_TZ.localize(dt, is_dst=None)
+            except InvalidTimeError as exc:
+                raise DateParseError(
+                    f"Invalid Europe/Madrid local time: {original_date_string}"
+                ) from exc
         return dt.astimezone(VALENCIA_TZ)
 
-    raise ValueError(f"Could not parse date: {date_string}")
+    raise DateParseError(f"Could not parse date: {original_date_string}")
