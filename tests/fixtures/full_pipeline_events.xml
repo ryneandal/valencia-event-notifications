@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Offline pipeline events</title>
+    <item>
+      <title>Morning art workshop</title>
+      <link>https://example.com/events/art-workshop</link>
+      <pubDate>Mon, 13 Oct 2025 08:00:00 +0000</pubDate>
+      <description>Hands-on family art beside the Turia.</description>
+    </item>
+    <item>
+      <title>Evening chamber concert</title>
+      <link>https://example.com/events/chamber-concert</link>
+      <pubDate>Mon, 13 Oct 2025 18:00:00 +0000</pubDate>
+      <description>Live music in a small historic venue.</description>
+    </item>
+  </channel>
+</rss>

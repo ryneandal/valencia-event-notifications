@@ -212,6 +212,170 @@ def test_live_retry_isolates_failure_and_never_resends_success(capsys):
     assert '"event.name": "digest.subscriber.failed"' in logs
 
 
+def test_offline_pipeline_collects_ranks_delivers_and_replays_safely():
+    connection = database(user_count=0)
+    fixture = Path(__file__).parent / "fixtures" / "full_pipeline_events.xml"
+
+    def profile(interest: str) -> str:
+        return json.dumps(
+            {
+                "audience": "adults",
+                "location_scope": "València",
+                "top_interest_clusters": [interest],
+                "strong_positive_signals": [interest],
+                "strong_negative_signals": [],
+                "seasonal_anchors": ["autumn"],
+            }
+        )
+
+    users: dict[str, int] = {}
+    for name, interest, active in (
+        ("art", "art", 1),
+        ("music", "music", 1),
+        ("fallback", "provider-failure", 1),
+        ("paused", "art", 1),
+        ("pending", "music", 0),
+    ):
+        cursor = connection.execute(
+            "INSERT INTO users (email, preferences_blob, is_active) VALUES (?, ?, ?)",
+            (f"{name}@example.com", profile(interest), active),
+        )
+        users[name] = int(cursor.lastrowid)
+    connection.execute(
+        "INSERT INTO subscriptions (user_id, is_subscribed) VALUES (?, 0)",
+        (users["paused"],),
+    )
+    connection.commit()
+
+    provider_profiles: list[dict] = []
+    delivery_attempts: dict[str, int] = {}
+    delivered: list[tuple[str, dict[str, str]]] = []
+
+    async def fixture_fetch(url, user_agent, timeout_ms):
+        assert user_agent.startswith("BrisaEventDigest/")
+        assert timeout_ms == 10_000
+        if "elperiodic.com" in url:
+            return fixture.read_text()
+        raise RuntimeError("fixture_unavailable")
+
+    async def openrouter_fetch(body):
+        request = json.loads(body["messages"][1]["content"])
+        request_profile = request["profile"]
+        provider_profiles.append(request_profile)
+        interest = request_profile["top_interest_clusters"][0]
+        if interest == "provider-failure":
+            raise RuntimeError("http_503")
+        candidates = request["events"]
+        preferred = "concert" if interest == "music" else "art"
+        ordered = sorted(
+            candidates,
+            key=lambda event: preferred not in event["title"].casefold(),
+        )
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "recommendations": [
+                                    {
+                                        "event_key": event["event_key"],
+                                        "reason": f"A strong {interest} match.",
+                                    }
+                                    for event in ordered
+                                ]
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    async def mailgun_delivery(recipient, message):
+        delivery_attempts[recipient] = delivery_attempts.get(recipient, 0) + 1
+        if recipient == "fallback@example.com" and delivery_attempts[recipient] == 1:
+            raise RuntimeError("mailgun_http_503")
+        delivered.append((recipient, message))
+        return f"provider-{recipient}-{delivery_attempts[recipient]}"
+
+    runtime_env = SimpleNamespace(
+        DB=SQLiteD1(connection),
+        EVENT_FETCH=fixture_fetch,
+        OPENROUTER_FETCH=openrouter_fetch,
+        DIGEST_DELIVERY=mailgun_delivery,
+        EMAIL_FROM="Brisa <hello@example.com>",
+        APP_BASE_URL="https://events.example.com",
+    )
+    now = datetime(2025, 10, 12, 8, tzinfo=UTC)
+
+    first = asyncio.run(orchestrator.run_digest(runtime_env, now=now, dry_run=False))
+
+    assert first["event_count"] == 2
+    assert first["subscriber_count"] == 3
+    assert first["sent_count"] == 2
+    assert first["failure_count"] == 1
+    assert first["fallback_count"] == 1
+    assert first["fallback_reasons"] == {"http_503": 1}
+    assert {recipient for recipient, _message in delivered} == {
+        "art@example.com",
+        "music@example.com",
+    }
+    assert all("Brisa picks" in message["subject"] for _recipient, message in delivered)
+    assert all(
+        "@example.com" not in json.dumps(request_profile)
+        for request_profile in provider_profiles
+    )
+
+    first_choices = connection.execute(
+        """
+        SELECT users.email, events.title, recommendations.position,
+               recommendations.model_id, recommendations.used_fallback
+        FROM recommendations
+        JOIN users ON users.id = recommendations.user_id
+        JOIN events ON events.id = recommendations.event_id
+        ORDER BY users.email, recommendations.position
+        """
+    ).fetchall()
+    choices = {
+        email: [
+            (title, model_id, used_fallback)
+            for row_email, title, _, model_id, used_fallback in first_choices
+            if row_email == email
+        ]
+        for email in {row[0] for row in first_choices}
+    }
+    assert choices["art@example.com"][0][0] == "Morning art workshop"
+    assert choices["music@example.com"][0][0] == "Evening chamber concert"
+    assert choices["fallback@example.com"][0][1:] == ("deterministic", 1)
+    assert connection.execute("SELECT COUNT(*) FROM digest_runs").fetchone()[0] == 1
+    assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 2
+    assert connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 6
+
+    connection.execute(
+        "UPDATE deliveries SET updated_at = datetime('now', '-6 minutes') "
+        "WHERE status = 'failed'"
+    )
+    connection.commit()
+    replay = asyncio.run(orchestrator.run_digest(runtime_env, now=now, dry_run=False))
+
+    assert replay["sent_count"] == 1
+    assert replay["skipped_count"] == 2
+    assert replay["failure_count"] == 0
+    assert delivery_attempts == {
+        "art@example.com": 1,
+        "music@example.com": 1,
+        "fallback@example.com": 2,
+    }
+    deliveries = connection.execute(
+        "SELECT status, attempt_count FROM deliveries ORDER BY user_id"
+    ).fetchall()
+    assert [tuple(row) for row in deliveries] == [
+        ("sent", 1),
+        ("sent", 1),
+        ("sent", 2),
+    ]
+
+
 def test_empty_run_completes_without_ranking_or_delivery():
     connection = database(user_count=0)
 

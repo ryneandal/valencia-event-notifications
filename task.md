@@ -66,7 +66,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
 
 - [ ] **Testing**
     - [ ] [RYN-133](https://linear.app/ryneandal/issue/RYN-133/expand-normalization-boundary-and-malformed-input-tests): add focused normalization boundary and malformed-input tests
-    - [ ] [RYN-134](https://linear.app/ryneandal/issue/RYN-134/add-an-offline-full-digest-pipeline-integration-test): add an offline full-pipeline integration test
+    - [x] [RYN-134](https://linear.app/ryneandal/issue/RYN-134/add-an-offline-full-digest-pipeline-integration-test): add an offline full-pipeline integration test
 
 - [ ] **Post-PoC enhancements**
     - [ ] [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): generate privacy-bounded,
