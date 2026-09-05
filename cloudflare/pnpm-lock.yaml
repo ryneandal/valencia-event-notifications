@@ -21,6 +21,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.1
         version: 6.1.1(vite@8.2.2)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
       vite:
         specifier: ^8.2.2
         version: 8.2.2

@@ -21,6 +21,7 @@ import {
   buildPersonalizationProfile,
   hydrateFormState
 } from './profile.js';
+import { validateOnboardingStep, validationTargetId } from './onboarding.js';
 
 const STEPS = [
   { eyebrow: 'Welcome', title: 'Where should we send tomorrow?', intro: 'One thoughtful email. No feed to keep up with.' },
@@ -125,11 +126,14 @@ function ReviewList({ form }) {
 
 export default function App() {
   const initialized = useRef(false);
+  const previousStep = useRef(0);
+  const stepTitleRef = useRef(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(DEFAULT_FORM_STATE);
   const [currentUser, setCurrentUser] = useState(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completion, setCompletion] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -174,24 +178,36 @@ export default function App() {
       });
   }, []);
 
-  const updateList = (field, value) => {
-    setForm((previous) => ({ ...previous, [field]: toggleValue(previous[field], value) }));
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    stepTitleRef.current?.focus();
+  }, [step]);
+
+  useEffect(() => {
+    if (!validationError) return;
+    document.getElementById(validationTargetId(validationError.field))?.focus();
+  }, [validationError]);
+
+  const clearValidationError = (field) => {
+    setValidationError((currentError) =>
+      currentError?.field === field ? null : currentError
+    );
   };
 
-  const validateStep = () => {
-    if (step === 0 && !/^\S+@\S+\.\S+$/.test(form.email)) return 'Enter a valid email address.';
-    if (step === 2 && form.locations.length === 0) return 'Choose at least one search area.';
-    if (step === 3 && form.interests.length === 0) return 'Choose at least one interest cluster.';
-    return '';
+  const updateList = (field, value) => {
+    setForm((previous) => ({ ...previous, [field]: toggleValue(previous[field], value) }));
+    clearValidationError(field);
   };
 
   const goNext = async () => {
     setError('');
-    const validationError = validateStep();
-    if (validationError) {
-      setError(validationError);
+    const nextValidationError = validateOnboardingStep(step, form);
+    if (nextValidationError) {
+      setValidationError(nextValidationError);
       return;
     }
+    setValidationError(null);
     if (step < STEPS.length - 1) {
       setStep((value) => value + 1);
       return;
@@ -223,10 +239,12 @@ export default function App() {
 
   const resume = async () => {
     setError('');
-    if (!/^\S+@\S+\.\S+$/.test(form.email)) {
-      setError('Enter your email first.');
+    const emailValidationError = validateOnboardingStep(0, form);
+    if (emailValidationError) {
+      setValidationError(emailValidationError);
       return;
     }
+    setValidationError(null);
     setBusy(true);
     try {
       await resumeUser(form.email.trim());
@@ -369,14 +387,22 @@ export default function App() {
           <span className="step-label">Step {String(step + 1).padStart(2, '0')} <span>of {String(STEPS.length).padStart(2, '0')}</span></span>
           {currentUser ? <button className="text-button" disabled={busy} onClick={signOut} type="button">Sign out</button> : null}
         </header>
-        <div className="progress-track" aria-hidden="true">
+        <div
+          className="progress-track"
+          role="progressbar"
+          aria-label="Onboarding progress"
+          aria-valuemax={STEPS.length}
+          aria-valuemin="1"
+          aria-valuenow={step + 1}
+          aria-valuetext={`Step ${step + 1} of ${STEPS.length}: ${current.eyebrow}`}
+        >
           <div className="progress-bar" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
         </div>
 
-        <div className="form-inner">
+        <form className="form-inner" noValidate onSubmit={(event) => { event.preventDefault(); void goNext(); }} aria-busy={busy}>
           <section className="step is-current" aria-labelledby="step-title">
             <p className="eyebrow">{current.eyebrow}</p>
-            <h2 id="step-title">{current.title}</h2>
+            <h2 id="step-title" ref={stepTitleRef} tabIndex="-1">{current.title}</h2>
             <p className="step-intro">{current.intro}</p>
 
             {step === 0 ? (
@@ -386,12 +412,19 @@ export default function App() {
                   autoComplete="email"
                   className="text-input"
                   id="email"
-                  onChange={(event) => setForm((previous) => ({ ...previous, email: event.target.value }))}
+                  aria-describedby={`email-hint${validationError?.field === 'email' ? ' email-error' : ''}`}
+                  aria-invalid={validationError?.field === 'email'}
+                  onChange={(event) => {
+                    setForm((previous) => ({ ...previous, email: event.target.value }));
+                    clearValidationError('email');
+                  }}
                   placeholder="you@example.com"
+                  required
                   type="email"
                   value={form.email}
                 />
-                <div className="reassurance"><span>☼</span><p><strong>Your inbox stays calm.</strong><br />This address is used for your digest and account access.</p></div>
+                {validationError?.field === 'email' ? <p className="field-error" id="email-error" role="alert">{validationError.message}</p> : null}
+                <div className="reassurance" id="email-hint"><span aria-hidden="true">☼</span><p><strong>Your inbox stays calm.</strong><br />This address is used for your digest and account access.</p></div>
                 {!currentUser ? <button className="resume-button" disabled={busy} onClick={resume} type="button">Already registered? Resume setup</button> : null}
               </>
             ) : null}
@@ -406,21 +439,41 @@ export default function App() {
             ) : null}
 
             {step === 2 ? (
-              <fieldset className="choice-grid location-grid">
-                <legend className="sr-only">Choose location scope</legend>
-                {LOCATION_OPTIONS.map(({ value, label, detail }) => (
-                  <ToggleChip key={value} checked={form.locations.includes(value)} icon="⌖" label={<><strong>{label}</strong><small>{detail}</small></>} onChange={() => updateList('locations', value)} />
-                ))}
-              </fieldset>
+              <>
+                <fieldset
+                  className="choice-grid location-grid"
+                  id="locations-fieldset"
+                  aria-describedby={validationError?.field === 'locations' ? 'locations-error' : undefined}
+                  aria-invalid={validationError?.field === 'locations'}
+                  aria-required="true"
+                  tabIndex="-1"
+                >
+                  <legend className="sr-only">Choose location scope</legend>
+                  {LOCATION_OPTIONS.map(({ value, label, detail }) => (
+                    <ToggleChip key={value} checked={form.locations.includes(value)} icon="⌖" label={<><strong>{label}</strong><small>{detail}</small></>} onChange={() => updateList('locations', value)} />
+                  ))}
+                </fieldset>
+                {validationError?.field === 'locations' ? <p className="field-error" id="locations-error" role="alert">{validationError.message}</p> : null}
+              </>
             ) : null}
 
             {step === 3 ? (
-              <fieldset className="interest-grid">
-                <legend className="sr-only">Choose interest clusters</legend>
-                {INTEREST_CLUSTERS.map(({ name, label, icon, includes }) => (
-                  <ToggleChip key={name} checked={form.interests.includes(name)} icon={icon} label={<><strong>{label}</strong><small>{includes.slice(0, 3).join(' · ')}</small></>} onChange={() => updateList('interests', name)} />
-                ))}
-              </fieldset>
+              <>
+                <fieldset
+                  className="interest-grid"
+                  id="interests-fieldset"
+                  aria-describedby={validationError?.field === 'interests' ? 'interests-error' : undefined}
+                  aria-invalid={validationError?.field === 'interests'}
+                  aria-required="true"
+                  tabIndex="-1"
+                >
+                  <legend className="sr-only">Choose interest clusters</legend>
+                  {INTEREST_CLUSTERS.map(({ name, label, icon, includes }) => (
+                    <ToggleChip key={name} checked={form.interests.includes(name)} icon={icon} label={<><strong>{label}</strong><small>{includes.slice(0, 3).join(' · ')}</small></>} onChange={() => updateList('interests', name)} />
+                  ))}
+                </fieldset>
+                {validationError?.field === 'interests' ? <p className="field-error" id="interests-error" role="alert">{validationError.message}</p> : null}
+              </>
             ) : null}
 
             {step === 4 ? (
@@ -456,12 +509,12 @@ export default function App() {
           </section>
 
           <div className="form-actions">
-            <button className="back-button" disabled={busy || step === 0} onClick={() => { setError(''); setStep((value) => Math.max(0, value - 1)); }} type="button">Back</button>
-            <button className="next-button" disabled={busy} onClick={goNext} type="button">
+            <button className="back-button" disabled={busy || step === 0} onClick={() => { setError(''); setValidationError(null); setStep((value) => Math.max(0, value - 1)); }} type="button">Back</button>
+            <button className="next-button" disabled={busy} type="submit">
               {busy ? 'Saving…' : step === STEPS.length - 1 ? 'Save my profile' : 'Continue'}
             </button>
           </div>
-        </div>
+        </form>
       </section>
     </main>
   );

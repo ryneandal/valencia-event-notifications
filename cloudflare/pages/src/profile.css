@@ -156,6 +156,25 @@
   text-align: right;
 }
 
+.field-error {
+  margin: 9px 0 0;
+  color: #b33d2d;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.choice-card:has(input:focus-visible),
+.interest-chip:has(input:focus-visible) {
+  outline: 3px solid rgba(238, 107, 82, 0.4);
+  outline-offset: 3px;
+}
+
+fieldset[aria-invalid='true'] {
+  border-radius: 9px;
+  outline: 2px solid #b33d2d;
+  outline-offset: 4px;
+}
+
 .success-screen.form-panel {
   position: relative;
   inset: auto;
@@ -250,5 +269,29 @@
 
   .success-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .choice-grid,
+  .location-grid,
+  .interest-grid,
+  .season-grid,
+  .signal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-inner,
+  .topbar {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .form-actions {
+    gap: 12px;
+  }
+
+  .form-actions button {
+    min-width: 0;
   }
 }

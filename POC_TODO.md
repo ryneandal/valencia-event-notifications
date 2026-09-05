@@ -44,13 +44,18 @@ authoritative until deliberately revised.
   profile, and an explicit completion state.
 - [x] Support pausing/unsubscribing from the onboarding account UI. The live
   account screen preserves the profile and session and can resume delivery.
-- [ ] Add field-level validation, accessible keyboard/focus behavior, responsive
+- [x] [RYN-122](https://linear.app/ryneandal/issue/RYN-122/harden-onboarding-validation-accessibility-and-mobile-behavior): add field-level validation, accessible keyboard/focus behavior, responsive
   layouts, reduced-motion support, and useful API error states.
   - [x] Repair the registered-account completion layout so its heading, status,
     actions, and notes stack vertically and remain centered while actions wrap.
   - [x] Separate registered-account actions into a two-column hierarchy: profile
     editing and safe preview first, then subscription state and sign-out; collapse
     to one action per row on small screens.
+  - [x] Associate required-field errors with their controls, move focus after
+    validation and step transitions, expose semantic progress, and support Enter
+    submission through a real form.
+  - [x] Verify 375 px and 320 px Chromium viewports have no document overflow;
+    details are recorded in `cloudflare/pages/ACCESSIBILITY.md`.
 - [x] Add deterministic frontend tests for profile construction and API payloads.
 - [x] Build the React SPA for the existing Pages project.
 - [x] Deploy the React SPA to the existing Pages project from the Git-connected

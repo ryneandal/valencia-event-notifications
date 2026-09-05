@@ -1,12 +1,32 @@
+export class ApiError extends Error {
+  constructor(message, { status = 0, kind = 'service', retryable = false, cause } = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.kind = kind;
+    this.retryable = retryable;
+    if (cause) this.cause = cause;
+  }
+}
+
 export async function apiFetch(path, options = {}, fetchImpl = fetch) {
-  const response = await fetchImpl(path, {
-    credentials: 'include',
-    ...options,
-    headers: {
-      'content-type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
+  let response;
+  try {
+    response = await fetchImpl(path, {
+      credentials: 'include',
+      ...options,
+      headers: {
+        'content-type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+  } catch (cause) {
+    throw new ApiError('We could not reach Brisa. Check your connection and try again.', {
+      kind: 'service',
+      retryable: true,
+      cause
+    });
+  }
 
   let payload = null;
   try {
@@ -16,9 +36,23 @@ export async function apiFetch(path, options = {}, fetchImpl = fetch) {
   }
 
   if (!response.ok) {
-    const error = new Error(payload?.error || `Request failed (${response.status})`);
-    error.status = response.status;
-    throw error;
+    if ([400, 422].includes(response.status)) {
+      throw new ApiError(payload?.error || 'Check the highlighted information and try again.', {
+        status: response.status,
+        kind: 'invalid_input'
+      });
+    }
+    if (response.status === 429 || response.status >= 500) {
+      throw new ApiError('Brisa is temporarily unavailable. Please try again shortly.', {
+        status: response.status,
+        kind: 'service',
+        retryable: true
+      });
+    }
+    throw new ApiError(payload?.error || `Request failed (${response.status})`, {
+      status: response.status,
+      kind: 'request'
+    });
   }
 
   return payload;

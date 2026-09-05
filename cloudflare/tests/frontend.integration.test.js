@@ -1,12 +1,14 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import {
+  apiFetch,
   registerUser,
   runDigestPreview,
   updateSubscription,
   updateUserProfile,
   verifyMagicLink
 } from '../pages/src/api.js';
+import { validateOnboardingStep } from '../pages/src/onboarding.js';
 import {
   DEFAULT_FORM_STATE,
   INTEREST_CLUSTERS,
@@ -15,6 +17,44 @@ import {
 } from '../pages/src/profile.js';
 
 describe('personalisation onboarding contract', () => {
+  test('returns field-specific errors for every required onboarding selection', () => {
+    expect(validateOnboardingStep(0, { ...DEFAULT_FORM_STATE, email: 'not-an-email' })).toEqual({
+      field: 'email',
+      message: 'Enter a valid email address.'
+    });
+    expect(validateOnboardingStep(2, { ...DEFAULT_FORM_STATE, locations: [] }).field).toBe('locations');
+    expect(validateOnboardingStep(3, { ...DEFAULT_FORM_STATE, interests: [] }).field).toBe('interests');
+    expect(validateOnboardingStep(0, { ...DEFAULT_FORM_STATE, email: 'family@example.com' })).toBeNull();
+  });
+
+  test.each([
+    [422, 'invalid_input', false],
+    [503, 'service', true]
+  ])('classifies API status %s as %s', async (status, kind, retryable) => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ error: 'backend detail' }), {
+        status,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await expect(apiFetch('/api/example', {}, fetchImpl)).rejects.toMatchObject({
+      status,
+      kind,
+      retryable
+    });
+  });
+
+  test('classifies network failures as retryable service errors', async () => {
+    const fetchImpl = vi.fn(async () => { throw new TypeError('offline'); });
+    await expect(apiFetch('/api/example', {}, fetchImpl)).rejects.toMatchObject({
+      status: 0,
+      kind: 'service',
+      retryable: true,
+      message: 'We could not reach Brisa. Check your connection and try again.'
+    });
+  });
+
   test('builds the exact profile shape consumed by the Python ranker', () => {
     const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
 
