@@ -417,6 +417,33 @@ async def _test_login_sends_link_and_logout_revokes_session():
     assert len(runtime_env.deliveries) == deliveries
 
 
+async def _test_inactive_user_login_creates_no_auth_state():
+    runtime_env = env()
+    assert (await register(runtime_env)).status == 202
+    assert runtime_env.DB.users[0]["is_active"] == 0
+
+    deliveries_before_login = len(runtime_env.deliveries)
+    links_before_login = list(runtime_env.DB.magic_links)
+
+    login = await worker.handle_request(
+        FakeRequest(
+            "https://example.com/api/login",
+            method="POST",
+            payload={"email": "family.user@example.com"},
+        ),
+        runtime_env,
+    )
+
+    assert login.status == 202
+    assert await login.json() == {
+        "ok": True,
+        "message": "Check your email to continue",
+    }
+    assert len(runtime_env.deliveries) == deliveries_before_login
+    assert runtime_env.DB.magic_links == links_before_login
+    assert runtime_env.DB.sessions == []
+
+
 async def _test_pending_registration_can_be_retried():
     runtime_env = env()
     assert (await register(runtime_env, preferences="first")).status == 202
@@ -578,6 +605,10 @@ def test_expired_magic_link_is_rejected():
 
 def test_login_sends_link_and_logout_revokes_session():
     asyncio.run(_test_login_sends_link_and_logout_revokes_session())
+
+
+def test_inactive_user_login_creates_no_auth_state():
+    asyncio.run(_test_inactive_user_login_creates_no_auth_state())
 
 
 def test_health_route_is_public_and_minimal():

@@ -59,7 +59,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
       production sending remains disabled pending the controlled smoke
     - [x] Add a safe authenticated dry-run path and per-user failure isolation
     - [x] Disable and remove the legacy GitHub Actions digest schedule
-    - [ ] [RYN-132](https://linear.app/ryneandal/issue/RYN-132/add-inactive-subscriber-login-regression-coverage): add inactive-subscriber login coverage; login, logout, and `/api/health` are already covered
+    - [x] [RYN-132](https://linear.app/ryneandal/issue/RYN-132/add-inactive-subscriber-login-regression-coverage): add inactive-subscriber login coverage; login, logout, and `/api/health` are already covered
     - [x] Add `wrangler deploy --dry-run` validation to CI and rename the
       Cloudflare job for frontend + Worker scope
     - [x] [RYN-131](https://linear.app/ryneandal/issue/RYN-131/align-terraform-with-the-deployed-pages-and-worker-configuration): align Terraform compatibility settings and the Git-connected Pages build command
