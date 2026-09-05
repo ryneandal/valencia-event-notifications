@@ -158,6 +158,11 @@ authoritative until deliberately revised.
   - [x] Local verification (2026-09-05): 94 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
     Wrangler Worker bundle dry-run pass (78.47 KiB upload, 18.26 KiB gzip).
+  - [x] Dependency security review (2026-09-05): integrated Dependabot PRs
+    #40–#47, applied #39's LangChain update to the current dependency graph,
+    and superseded obsolete Starlette PR #37 because Starlette is no longer a
+    project dependency. `pip-audit` and `pnpm audit` both report zero known
+    vulnerabilities; frozen lock installs and the full local checks pass.
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
