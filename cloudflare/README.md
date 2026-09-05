@@ -47,7 +47,8 @@ Browser
   -> D1 (subscriber, profile, session/auth state)
 
 Cloudflare Cron Trigger [deployed; dry-run by default]
-  -> scheduled Worker
+  -> lightweight scheduled Worker dispatcher
+  -> Python `DigestCoordinator` Durable Object
   -> fetch and normalize events into D1
   -> load active subscriber profiles directly from D1
   -> rank with OpenRouter/Nemotron by default
@@ -98,6 +99,9 @@ deployment are live.
 ### Worker runtime
 
 - `DB`: required D1 binding named `valencia-events`.
+- `DIGEST_COORDINATOR`: SQLite-backed Durable Object binding. Cron and the
+  authenticated preview route dispatch to the stable `daily-digest` instance so
+  scraping/parsing does not run inside the Free-plan HTTP/Cron CPU boundary.
 - `SESSION_TTL_HOURS`: non-secret session lifetime; defaults to `24` in the
   checked-in Wrangler configuration.
 - `APP_BASE_URL`: public Pages origin used to construct
@@ -146,16 +150,16 @@ codes; provider bodies and profile values are never logged. Do not set
 advertise structured-output support and becomes unroutable when that constraint
 is required.
 
-For the PoC, the interactive API and daily scheduler share the existing Python
-Worker and D1 binding. This keeps deployment and secrets in one place while the
-subscriber count is small. The configured `0 8 * * *` trigger runs at 08:00 UTC,
-which is 09:00 CET or 10:00 CEST in València. Move per-subscriber work to a Queue
-consumer only when fan-out or execution limits justify the additional component.
-Free Workers allow only 10 ms of CPU for both HTTP and Cron invocations. An HTTP
-request may remain open while awaiting network I/O, but that unlimited wall time
-does not increase its CPU allowance; Cron invocations instead have a 15-minute
-wall-time ceiling. Confirm Workers Paid before relying on Python parsing in the
-daily schedule. Current limits: <https://developers.cloudflare.com/workers/platform/limits/>.
+For the PoC, the interactive API, daily scheduler, and Durable Object share the
+existing Python Worker deployment, secrets, and D1 binding. The configured
+`0 8 * * *` trigger runs at 08:00 UTC, which is 09:00 CET or 10:00 CEST in
+València. The Cron handler only dispatches to the stable `daily-digest` Durable
+Object; that object runs collection, ranking, rendering, and optional delivery.
+The authenticated preview uses the same boundary and remains targeted and
+delivery-disabled. D1 idempotency protects against overlapping/repeated
+invocations. Move per-subscriber work to a Queue consumer only when fan-out or
+execution limits justify another component. Current limits:
+<https://developers.cloudflare.com/durable-objects/platform/limits/>.
 
 ### D1 batch-processing state
 

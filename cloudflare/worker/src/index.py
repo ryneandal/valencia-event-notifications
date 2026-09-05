@@ -10,6 +10,7 @@ except ImportError:  # pragma: no cover - local pytest fallback
 
 
 from worker_app import handle_request
+from worker_durable import DigestCoordinator  # noqa: F401
 from worker_http import AppResponse
 from worker_schedule import handle_scheduled
 
@@ -25,4 +26,5 @@ class Default(WorkerEntrypoint):
         return _to_worker_response(await handle_request(request, self.env))
 
     async def scheduled(self, controller, env, ctx):
-        await handle_scheduled(controller, env, ctx)
+        del env
+        await handle_scheduled(controller, self.env, ctx)

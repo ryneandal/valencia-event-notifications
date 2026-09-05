@@ -1,8 +1,7 @@
 import json
-from datetime import UTC, datetime
 from typing import Any
 
-from worker_orchestrator import run_digest
+from worker_durable import dispatch_digest
 from worker_runtime import env_value
 
 
@@ -26,11 +25,8 @@ async def handle_scheduled(controller: Any, env: Any, ctx: Any) -> None:
     }
     dry_run = not enabled
     print(json.dumps(scheduled_event_metadata(controller, dry_run), sort_keys=True))
-    scheduled_time = getattr(controller, "scheduledTime", None)
-    now = (
-        datetime.fromtimestamp(float(scheduled_time) / 1000, UTC)
-        if scheduled_time is not None
-        else datetime.now(UTC)
+    await dispatch_digest(
+        env,
+        scheduled_time_ms=getattr(controller, "scheduledTime", None),
+        dry_run=dry_run,
     )
-    runner = env_value(env, "RUN_DIGEST", run_digest)
-    await runner(env, now=now, dry_run=dry_run)

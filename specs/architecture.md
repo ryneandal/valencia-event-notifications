@@ -20,7 +20,8 @@ Browser
 Scheduled digest plane
 ======================
 Cloudflare Cron Trigger [deployed; dry-run by default]
-  -> scheduled handler on the existing Python Cloudflare Worker
+  -> lightweight scheduled handler on the existing Python Cloudflare Worker
+  -> SQLite-backed Python Durable Object (`DigestCoordinator`)
   -> fetch and normalize event sources
   -> D1 event and delivery history
   -> active D1 subscribers and their profiles
@@ -30,14 +31,14 @@ Cloudflare Cron Trigger [deployed; dry-run by default]
 
 The existing Python/Scrapy/SQLite command remains useful for local development
 and as migration reference code. The GitHub Actions digest schedule is legacy
-infrastructure and is not part of the target production platform. The
-Cloudflare runtime plan must provide enough Cron CPU for parsing and
-orchestration. Free Workers currently allow 10 ms of CPU for both HTTP and Cron
-invocations. HTTP wall time can continue while a client remains connected and
-the Worker awaits I/O, while Cron has a 15-minute wall-time ceiling; neither
-changes the 10 ms Free CPU allowance. The Free plan is therefore not a safe
-production assumption for this Python workload. Confirm Workers Paid before
-enabling scheduled delivery.
+infrastructure and is not part of the target production platform. Free Worker
+HTTP and Cron entrypoints have a very small CPU allowance, so both scheduled and
+authenticated preview runs cross into the named `DigestCoordinator` object
+before collection begins. The object serializes overlapping runs and gives the
+Python parsing workload the Durable Object execution budget. D1 remains the
+canonical event, recommendation, and delivery store; the object's SQLite
+storage backend is provisioned only because it is required for Free-plan Durable
+Objects, not as a second source of truth.
 
 ## Delivery state
 
@@ -61,7 +62,7 @@ enabling scheduled delivery.
   retention cleanup, and authenticated per-user preview are implemented.
 - `OPENROUTER_API_KEY` is configured as an encrypted Worker secret.
   `DIGEST_DELIVERY_ENABLED=false` keeps Cron runs in dry-run mode until the
-  runtime plan, authenticated provider preview, and controlled send are verified.
+  authenticated Durable Object/provider preview and controlled send are verified.
 - The React onboarding SPA, repository-root Pages Function, single-use magic-link
   Worker, D1 migration, branded verification email, and Mailgun delivery are live.
 
@@ -126,7 +127,8 @@ tooling and cannot read production subscribers.
 - Interactive Cloudflare Worker: D1 `DB` binding; `SESSION_TTL_HOURS`; magic-link
   `APP_BASE_URL`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `EMAIL_FROM`; optional
   `MAGIC_LINK_TTL_MINUTES`; and secret `MAILGUN_API_KEY`.
-- Scheduled Cloudflare Worker: D1 binding, Cron Trigger,
+- Scheduled Cloudflare Worker: D1 binding, Cron Trigger, SQLite-backed
+  `DIGEST_COORDINATOR` Durable Object binding,
   `OPENROUTER_MODEL` defaulting to
   `nvidia/nemotron-3-ultra-550b-a55b:free`, `DIGEST_DELIVERY_ENABLED` defaulting
   to `false`, and Worker secrets for OpenRouter and Mailgun.

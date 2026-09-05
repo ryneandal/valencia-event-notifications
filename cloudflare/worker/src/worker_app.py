@@ -14,9 +14,9 @@ from worker_auth import (
     resolve_session_user,
     sha256_hex,
 )
+from worker_durable import dispatch_digest
 from worker_email import DeliveryConfigurationError, deliver_magic_link
 from worker_http import AppResponse, json_response
-from worker_orchestrator import run_digest
 from worker_runtime import (
     env_value,
     header_get,
@@ -315,7 +315,7 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         if not user:
             return json_response({"error": "Unauthorized"}, 401)
         try:
-            summary = await run_digest(
+            summary = await dispatch_digest(
                 env,
                 dry_run=True,
                 target_user_id=int(user["id"]),

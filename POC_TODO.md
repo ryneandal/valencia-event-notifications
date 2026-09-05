@@ -62,8 +62,9 @@ authoritative until deliberately revised.
 
 - [x] Prove lossless mapping between D1 `preferences_blob` and the six-field
   Worker ranking profile through storage and orchestrator tests.
-- [ ] Confirm a Cloudflare Workers plan/runtime split with enough CPU for event
-  parsing; the Free plan's Cron CPU budget is not a safe production assumption.
+- [x] Route Cron and authenticated preview runs through a SQLite-backed Python
+  Durable Object so collection/parsing uses the Durable Object execution budget;
+  keep the Cron entrypoint as a small dispatcher and D1 as canonical storage.
 - [x] Add a Cloudflare `scheduled()` handler and daily Cron Trigger.
 - [x] Port event collection and normalization to Worker-compatible asynchronous
   fetch/parsing; Scrapy and cached SQLite remain local migration references only.
@@ -84,9 +85,20 @@ authoritative until deliberately revised.
 - [x] Disable and remove the GitHub Actions digest schedule so it cannot send
   during the Cloudflare migration.
 - [x] Deploy and validate the Cron-triggered Worker. Current production version
-  `92e8bfb4-952e-45e5-97a1-199bdab8b5f9` is healthy, has the encrypted OpenRouter
+  `a54c1988-3718-480f-8d23-8be0ca95461f` is healthy, has the encrypted OpenRouter
   secret, keeps delivery disabled, and is registered with `0 8 * * *` UTC as of
   2026-09-05.
+- [x] Deploy the SQLite-backed `DigestCoordinator` Durable Object with the
+  scheduled and authenticated-preview dispatch paths.
+  - [x] Local runtime smoke (2026-09-05): Wrangler instantiated the Python object,
+    dispatched the scheduled RPC, fetched both sources, matched four events for
+    2026-09-06, completed with zero failures, and sent no email.
+  - [x] Production deployment (2026-09-05): Cloudflare created the
+    `DigestCoordinator` export, attached its binding, retained the daily Cron,
+    and activated version `a54c1988-3718-480f-8d23-8be0ca95461f`; health is 200
+    and delivery remains disabled.
+- [ ] Confirm an authenticated production preview emits
+  `digest.coordinator.started` before the normal run events.
 
 ## Track C — Verified magic-link authentication (owner: delegated agent)
 
@@ -143,18 +155,18 @@ authoritative until deliberately revised.
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [ ] Run Python tests, Ruff, frontend tests/build, Wrangler dry-run, live health,
   and end-to-end smoke checks; record final evidence here.
-  - [x] Local verification (2026-09-05): 92 Python tests and 10 frontend tests
+  - [x] Local verification (2026-09-05): 94 Python tests and 10 frontend tests
     pass; Ruff check/format, Vite production build, `git diff --check`, and the
-    Wrangler Worker bundle dry-run pass (76.54 KiB upload, 17.73 KiB gzip).
+    Wrangler Worker bundle dry-run pass (78.47 KiB upload, 18.26 KiB gzip).
   - [x] Production health smoke (2026-09-04): React assets and the same-origin
     Pages Function proxy are live; registration returned `202`; Mailgun reported
     both `accepted` and `delivered` without exposing the recipient or token.
   - [x] Production D1 profile smoke (2026-09-04): one verified active subscriber
     has a stored profile containing the six authoritative personalization keys.
-  - [x] Production Worker smoke (2026-09-04): version
-    `92e8bfb4-952e-45e5-97a1-199bdab8b5f9` starts without external tzdata,
-    `/api/health` returns `200`, unauthenticated digest preview returns `401`, and
-    Cron delivery remains disabled.
+  - [x] Production Worker smoke (2026-09-05): version
+    `a54c1988-3718-480f-8d23-8be0ca95461f` starts without external tzdata,
+    exposes the `DigestCoordinator`, `/api/health` returns `200`, unauthenticated
+    digest preview returns `401`, and Cron delivery remains disabled.
   - [x] Live source probe (2026-09-04): the City agenda parsed 75 records and the
     corrected active-range policy found two candidates for 2026-09-05; the
     ElPeriodic feed parsed 30 records and found zero. Short active ranges and a

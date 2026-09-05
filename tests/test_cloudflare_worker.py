@@ -20,8 +20,8 @@ worker = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(worker)
 
-import worker_app as worker_app_module  # noqa: E402
 from worker_auth import sha256_hex  # noqa: E402
+from worker_durable import DigestCoordinator, dispatch_digest  # noqa: E402
 from worker_email import (  # noqa: E402
     DeliveryConfigurationError,
     brand_asset_url,
@@ -611,18 +611,23 @@ def test_subscription_controls_are_authenticated_and_isolated():
 def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch):
     calls = []
 
-    async def fake_run_digest(runtime_env, **kwargs):
-        calls.append((runtime_env, kwargs))
-        return {
-            "correlation_id": "safe-id",
-            "subscriber_count": 1,
-            "dry_run": True,
-        }
+    class Stub:
+        async def run(self, *args):
+            calls.append(args)
+            return {
+                "correlation_id": "safe-id",
+                "subscriber_count": 1,
+                "dry_run": True,
+            }
 
-    monkeypatch.setattr(worker_app_module, "run_digest", fake_run_digest)
+    class Namespace:
+        def getByName(self, name):  # noqa: N802
+            assert name == "daily-digest"
+            return Stub()
 
     async def exercise():
         runtime_env = env()
+        runtime_env.DIGEST_COORDINATOR = Namespace()
         unauthorized = await worker.handle_request(
             FakeRequest(
                 "https://example.com/api/digest/dry-run",
@@ -653,7 +658,7 @@ def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch)
                 "dry_run": True,
             }
         }
-        assert calls == [(runtime_env, {"dry_run": True, "target_user_id": 1})]
+        assert calls == [(None, True, 1)]
 
     asyncio.run(exercise())
 
@@ -712,11 +717,17 @@ def test_scheduled_handler_emits_safe_scaffold_event(capsys):
     controller = SimpleNamespace(cron="0 8 * * *", scheduledTime=1_788_508_800_000)
     calls = []
 
-    async def fake_run_digest(runtime_env, **kwargs):
-        calls.append((runtime_env, kwargs))
+    class Stub:
+        async def run(self, *args):
+            calls.append(args)
+
+    class Namespace:
+        def getByName(self, name):  # noqa: N802
+            assert name == "daily-digest"
+            return Stub()
 
     runtime_env = SimpleNamespace(
-        DIGEST_DELIVERY_ENABLED="false", RUN_DIGEST=fake_run_digest
+        DIGEST_DELIVERY_ENABLED="false", DIGEST_COORDINATOR=Namespace()
     )
     asyncio.run(handle_scheduled(controller, runtime_env, object()))
 
@@ -727,9 +738,38 @@ def test_scheduled_handler_emits_safe_scaffold_event(capsys):
         "event.name": "digest.schedule.triggered",
         "pipeline.state": "dry_run",
     }
+    assert calls == [(1_788_508_800_000, True, None)]
+
+
+def test_digest_coordinator_runs_pipeline_with_utc_time(capsys):
+    calls = []
+
+    async def fake_run_digest(runtime_env, **kwargs):
+        calls.append((runtime_env, kwargs))
+        return {"ok": True}
+
+    runtime_env = SimpleNamespace(RUN_DIGEST=fake_run_digest)
+    coordinator = DigestCoordinator(object(), runtime_env)
+    result = asyncio.run(coordinator.run(1_788_508_800_000, True, 42))
+
+    assert result == {"ok": True}
     assert calls[0][0] is runtime_env
-    assert calls[0][1]["dry_run"] is True
-    assert calls[0][1]["now"].tzinfo is UTC
+    assert calls[0][1] == {
+        "now": datetime.fromtimestamp(1_788_508_800, UTC),
+        "dry_run": True,
+        "target_user_id": 42,
+    }
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "event.name": "digest.coordinator.started",
+        "pipeline.state": "dry_run",
+        "targeted": True,
+    }
+
+
+def test_digest_dispatch_requires_binding():
+    with pytest.raises(RuntimeError, match="missing_digest_coordinator_binding"):
+        asyncio.run(dispatch_digest(SimpleNamespace()))
 
 
 def test_worker_scheduled_entrypoint_delegates(monkeypatch):
@@ -742,7 +782,9 @@ def test_worker_scheduled_entrypoint_delegates(monkeypatch):
     controller = SimpleNamespace(cron="0 8 * * *", scheduledTime=0)
     runtime_env = object()
     ctx = object()
+    entrypoint = worker.Default()
+    entrypoint.env = runtime_env
 
-    asyncio.run(worker.Default().scheduled(controller, runtime_env, ctx))
+    asyncio.run(entrypoint.scheduled(controller, object(), ctx))
 
     assert calls == [(controller, runtime_env, ctx)]

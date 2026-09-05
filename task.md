@@ -1,6 +1,6 @@
 # Project Tasks
 
-Last reconciled with the codebase and PoC architecture: 2026-09-04.
+Last reconciled with the codebase and PoC architecture: 2026-09-05.
 
 - [x] **Core Infrastructure**
     - [x] Project scaffolding
@@ -53,6 +53,8 @@ Last reconciled with the codebase and PoC architecture: 2026-09-04.
     - [x] Configure the deployed D1 binding in `wrangler.toml`
     - [x] Add the Pages Function `/api/*` proxy
     - [x] Add and deploy a `scheduled()` handler with a daily Cron Trigger
+    - [x] Dispatch scheduled and authenticated preview runs through a
+      SQLite-backed Python Durable Object for the scraping/parsing workload
     - [x] Add D1 event/recommendation/delivery history and idempotency
     - [x] Implement OpenRouter ranking and Mailgun digest delivery in the Worker;
       production sending remains disabled pending the controlled smoke
