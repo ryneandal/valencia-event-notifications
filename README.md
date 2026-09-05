@@ -61,6 +61,14 @@ pipeline remains migration/reference code, not the final scheduler. See
 [specs/architecture.md](specs/architecture.md) for deployment state, trust
 boundaries, and failure behavior.
 
+The local Scrapy spiders deliberately stop at extraction. Raw-item validation is
+owned by `valencia_events.source_filters.should_keep_raw_event` when
+`run_scrapers()` combines their feeds; normalization then creates the validated
+Pydantic event. The old Scrapy item pipeline was removed to avoid enforcing the
+same required fields twice. Sala Russafa was never a configured source and its
+synthetic placeholder fixture has been retired; adding it later requires a new
+captured fixture and source review.
+
 ## Data Schema
 
 The system deliberately separates subscriber and batch-processing state.

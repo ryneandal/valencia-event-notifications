@@ -14,7 +14,7 @@ class RawEventItem(scrapy.Item):
         start (str): Event start date/time (raw string to be normalized)
         url (str): URL to event details page
         description (str): Event description text
-        source (str): Source identifier (e.g., 'sala_russafa', 'rss_feed')
+        source (str): Source identifier (e.g., 'visit_valencia', 'rss_feed')
     """
 
     title = scrapy.Field()

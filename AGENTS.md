@@ -25,10 +25,10 @@ Prefer small, well-scoped issues. A useful task includes:
 
 Example issue body (good):
 
-- Title: `src/scrapers/valencia_events/spiders/sala_russafa_spider.py — add spider`
-- Goal: "Add a Scrapy spider that extracts title, start, URL, and description from the Sala Russafa program page and yields the repository's raw event shape."
-- Acceptance tests: provide a saved HTML fixture and `pytest` test asserting the spider yields one item with `title == '...'` and a parsed `start` datetime.
-- Files: `src/scrapers/valencia_events/spiders/sala_russafa_spider.py`, `tests/fixtures/salarussafa.html`, `tests/test_sala_spider.py`.
+- Title: `src/scrapers/valencia_events/spiders/new_venue_spider.py — add spider`
+- Goal: "Add a Scrapy spider that extracts title, start, URL, and description from a reviewed venue page and yields the repository's raw event shape."
+- Acceptance tests: provide a captured HTML fixture and `pytest` test asserting the spider yields one item with `title == '...'` and a parseable `start` value.
+- Files: `src/scrapers/valencia_events/spiders/new_venue_spider.py`, `tests/fixtures/new_venue.html`, `tests/test_new_venue_spider.py`.
 - Constraints: `Scrapy` only, do not reduce the repository's one-second request delay, and respect `robots.txt`.
 
 ---
@@ -57,7 +57,7 @@ When writing an issue or delegating a subtask, include:
 
 Small example snippet to include in prompts:
 
-- "Given the `tests/fixtures/salarussafa.html` file, implement `src/scrapers/valencia_events/spiders/sala_russafa_spider.py` such that `pytest tests/test_sala_spider.py` passes."
+- "Given `tests/fixtures/new_venue.html`, implement `src/scrapers/valencia_events/spiders/new_venue_spider.py` such that `pytest tests/test_new_venue_spider.py` passes."
 
 ---
 
@@ -67,11 +67,11 @@ Inspect the relevant files before editing (the project uses a `src/` layout):
 
 - `src/scrapers/valencia_events/spiders/`  
 - `src/scrapers/valencia_events/items.py`  
-- `src/scrapers/valencia_events/pipelines.py`  
-- `src/valencia_events/` — `models.py`, `normalize.py`, `storage.py`, `mailer.py`, `runner.py`, `cli.py`, `filters.py`, `personalization.py`, `onboarding.py`, `web.py`, `services.py`  
+- `src/valencia_events/source_filters.py` — the local raw-item validation boundary
+- `src/valencia_events/` — `models.py`, `normalize.py`, `storage.py`, `mailer.py`, `runner.py`, `cli.py`, `filters.py`, `personalization.py`, and `services.py`
 - `cloudflare/` — Pages frontend (`pages/public/`) and Python Worker API (`worker/src/`)  
 - `tests/fixtures/` and `tests/` (very small, focused fixtures)  
-- `.github/workflows/nightly_digest.yml` and `.github/workflows/ci.yml` (for CI expectations)  
+- `.github/workflows/ci.yml` and `cloudflare/worker/wrangler.toml` (for CI and deployed-runtime expectations)
 - `pyproject.toml`, `requirements.txt`, and `uv.lock` (dependency declarations and lock state)
 - `.env.example`, `README.md`, and `specs/` (runtime configuration and public behavior)
 

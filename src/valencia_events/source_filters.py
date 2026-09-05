@@ -33,11 +33,11 @@ def should_keep_raw_event(raw_item: dict[str, Any]) -> bool:
     title = str(raw_item.get("title", "")).strip()
     url = str(raw_item.get("url", "")).strip()
     start = str(raw_item.get("start", "")).strip()
+    source = str(raw_item.get("source", "")).strip().lower()
 
-    if not title or not url or not start:
+    if not title or not url or not start or not source:
         return False
 
-    source = str(raw_item.get("source", "")).strip().lower()
     if source in EDITORIAL_SOURCES:
         title_lower = title.lower()
         if any(token in title_lower for token in EDITORIAL_BLOCKLIST):

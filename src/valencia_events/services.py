@@ -84,7 +84,10 @@ def _run_single_spider(
 
 
 def run_scrapers() -> list[dict]:
-    """Run all configured scrapers and collect raw events.
+    """Run all configured scrapers and collect validated raw events.
+
+    ``should_keep_raw_event`` is the canonical validation boundary for the local
+    reference scraper path. Scrapy spiders only extract raw source data.
 
     Returns:
         Raw event dictionaries that passed source filtering.

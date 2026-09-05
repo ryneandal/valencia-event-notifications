@@ -12,7 +12,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] Continuous integration (`ci.yml`); the old `nightly_digest.yml` runtime
       has been removed
 
-- [ ] **Scrapers** (`src/scrapers/valencia_events/spiders/`)
+- [x] **Scrapers** (`src/scrapers/valencia_events/spiders/`)
     - [x] `visit_valencia_spider.py`
     - [x] `rss_spider.py` (generic RSS spider)
     - [x] `ajuntament_agenda_spider.py`
@@ -21,7 +21,7 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] `ivam_spider.py`
     - [x] `valencia_secreta_spider.py`
     - [x] `valenciabonita_spider.py`
-    - [ ] [RYN-135](https://linear.app/ryneandal/issue/RYN-135/resolve-the-legacy-sala-russafa-scraper-and-validation-pipeline): decide whether to retain `sala_russafa_spider.py` and consolidate the unused Scrapy validation path
+    - [x] [RYN-135](https://linear.app/ryneandal/issue/RYN-135/resolve-the-legacy-sala-russafa-scraper-and-validation-pipeline): retire the never-configured Sala Russafa placeholder and use `source_filters.py` as the single local raw-item validation boundary
     - [x] Port the retained sources to Worker-compatible asynchronous collectors
       for the Cloudflare production runtime
 

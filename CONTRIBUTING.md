@@ -10,7 +10,7 @@ When creating issues for this project, please follow this template to ensure Cop
 
 **Title**: `<file_path> — <brief description>`
 
-Example: `scrapers/valencia_events/spiders/sala_russafa_spider.py — add spider`
+Example: `src/scrapers/valencia_events/spiders/new_venue_spider.py — add spider`
 
 **Goal** (one sentence):
 What should be implemented?
@@ -21,9 +21,9 @@ What should be implemented?
 
 **Files to Create/Edit**:
 - List exact paths in the repo
-- Example: `scrapers/valencia_events/spiders/sala_russafa_spider.py`
-- Example: `tests/test_sala_spider.py`
-- Example: `tests/fixtures/salarussafa.html`
+- Example: `src/scrapers/valencia_events/spiders/new_venue_spider.py`
+- Example: `tests/test_new_venue_spider.py`
+- Example: `tests/fixtures/new_venue.html`
 
 **Constraints**:
 - Allowed libraries (e.g., `Scrapy` only)
@@ -35,9 +35,7 @@ What should be implemented?
 - Python 3.11
 - Type hints required
 - Pydantic for models
-- Format with Black
-- Lint with Ruff
-- Sort imports with isort
+- Format and lint with Ruff
 
 ## Example Good Issue
 

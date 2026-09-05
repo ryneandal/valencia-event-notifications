@@ -156,6 +156,10 @@ authoritative until deliberately revised.
   claims without deleting still-useful local tooling.
 - [x] Remove the unused FastAPI onboarding surface, D1 HTTP subscriber export,
   local bearer-session code, and unpopulated `users_events` table.
+- [x] [RYN-135](https://linear.app/ryneandal/issue/RYN-135/resolve-the-legacy-sala-russafa-scraper-and-validation-pipeline):
+  retire the synthetic Sala Russafa placeholder and remove the duplicate Scrapy
+  item-validation pipeline; `source_filters.py` now owns raw validation for local
+  reference runs.
 - [x] Ensure all implementation changes are committed and pushed so a future
   Git-triggered Pages deployment cannot overwrite the live manual deployment.
 - [x] [RYN-131](https://linear.app/ryneandal/issue/RYN-131/align-terraform-with-the-deployed-pages-and-worker-configuration): align Terraform's Pages build and compatibility settings with the deployed architecture.

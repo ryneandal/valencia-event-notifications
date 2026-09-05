@@ -29,11 +29,6 @@ COOKIES_ENABLED = False
 # Disable Telnet Console (enabled by default)
 TELNETCONSOLE_ENABLED = False
 
-# Configure item pipelines
-ITEM_PIPELINES = {
-    "scrapers.valencia_events.pipelines.ValenciaEventsPipeline": 300,
-}
-
 # Set settings whose default value is deprecated to a future-proof value
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
