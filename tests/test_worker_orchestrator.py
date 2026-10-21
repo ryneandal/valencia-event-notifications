@@ -7,6 +7,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 WORKER_DIR = Path(__file__).resolve().parents[1] / "cloudflare" / "worker" / "src"
 sys.path.insert(0, str(WORKER_DIR))
 
@@ -444,7 +446,7 @@ def test_targeted_jev_preview_uses_saved_profile_and_clears_stale_recommendation
     first = asyncio.run(
         orchestrator.run_digest(env, now=now, dry_run=True, target_user_id=1)
     )
-    assert set(first) == {"contract_version", "summary", "evaluations"}
+    assert set(first) == {"contract_version", "summary", "evaluations", "plans"}
     assert first["contract_version"] == "jev-preview-v1"
     assert first["summary"]["subscriber_count"] == 1
     assert first["summary"]["rendered_count"] == 1
@@ -467,6 +469,9 @@ def test_targeted_jev_preview_uses_saved_profile_and_clears_stale_recommendation
     assert second["summary"]["fallback_count"] == 0
     assert second["summary"]["sent_count"] == 0
     assert second["evaluations"][0]["decision"] == "irrelevant"
+    assert second["plans"]["recommendations"] == []
+    assert second["plans"]["excluded_count"] == 1
+    assert second["plans"]["coverage"]["state"] == "complete"
     assert connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0
     assert connection.execute("SELECT COUNT(*) FROM deliveries").fetchone()[0] == 0
     rows = connection.execute(
@@ -513,6 +518,177 @@ def test_targeted_off_preview_has_explicit_disabled_state_without_provider_call(
     assert result["evaluations"][0]["error_code"] == "feature_disabled"
     assert result["summary"]["subscriber_count"] == 1
     assert result["summary"]["sent_count"] == 0
+
+
+def test_preview_plans_follow_ranker_order_and_only_expose_public_event_fields():
+    connection = database(user_count=1)
+
+    async def collect(_env, target):
+        return (
+            [
+                {
+                    "title": title,
+                    "start_at": f"{target}T19:00:00+02:00",
+                    "url": f"https://example.com/{title}",
+                    "description": "Public description",
+                    "source": "fixture",
+                    "time_precision": "datetime",
+                    "end_at": f"{target}T20:00:00+02:00",
+                    "location": "Public venue",
+                }
+                for title in ("A", "B")
+            ],
+            [{"source": "fixture", "status": "ok", "parsed": 2, "matched": 2}],
+        )
+
+    async def ranked(_env, _profile, events):
+        from worker_jev import fallback_evaluation
+
+        return ranking_module.Ranking(
+            [
+                {
+                    **event,
+                    "relevance_reason": "A useful plan.",
+                    "email": "private@example.com",
+                    "session": "private-session",
+                }
+                for event in reversed(events)
+            ],
+            "deterministic",
+            True,
+            evaluations=[
+                fallback_evaluation(event, ["film"], "feature_disabled")
+                for event in events
+            ],
+        )
+
+    result = asyncio.run(
+        orchestrator.run_digest(
+            SimpleNamespace(
+                DB=SQLiteD1(connection), COLLECT_EVENTS=collect, RANK_EVENTS=ranked
+            ),
+            now=datetime(2026, 10, 21, 12, tzinfo=UTC),
+            dry_run=True,
+            target_user_id=1,
+        )
+    )
+    plans = result["plans"]
+    assert [event["title"] for event in plans["recommendations"]] == ["B", "A"]
+    assert [event["position"] for event in plans["recommendations"]] == [1, 2]
+    assert [item["event"]["title"] for item in result["evaluations"]] == ["A", "B"]
+    assert plans["recommendations"][0]["time_precision"] == "datetime"
+    assert plans["recommendations"][0]["location"] == "Public venue"
+    assert plans["recommendations"][0]["used_fallback"] is True
+    assert plans["delivery_enabled"] is False
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "statuses,state",
+    [
+        (["ok", "ok"], "complete"),
+        (["ok", "failed"], "partial"),
+        (["failed", "failed"], "unavailable"),
+    ],
+)
+def test_empty_preview_reports_truthful_source_coverage_and_persists_checks(
+    statuses, state
+):
+    connection = database(user_count=1)
+
+    async def collect(_env, _date):
+        return [], [
+            {
+                "source": f"source_{index}",
+                "status": status,
+                "parsed": 4,
+                "matched": 0,
+                "error_code": "private-secret",
+            }
+            for index, status in enumerate(statuses)
+        ]
+
+    result = asyncio.run(
+        orchestrator.run_digest(
+            SimpleNamespace(DB=SQLiteD1(connection), COLLECT_EVENTS=collect),
+            now=datetime(2026, 10, 21, 12, tzinfo=UTC),
+            dry_run=True,
+            target_user_id=1,
+        )
+    )
+    assert result["plans"]["coverage"]["state"] == state
+    assert result["plans"]["coverage"]["collected_count"] == 0
+    assert result["plans"]["recommendations"] == []
+    rows = [dict(row) for row in connection.execute("SELECT * FROM source_checks")]
+    assert len(rows) == 2
+    assert all(row["checked_date"] == "2026-10-22" for row in rows)
+    assert [row["status"] for row in rows] == [
+        "ok" if value == "ok" else "error" for value in statuses
+    ]
+    assert "private" not in json.dumps(rows)
+
+
+def test_preview_date_bounds_are_madrid_local_and_checked_before_collection():
+    from worker_time import available_preview_dates, validate_preview_date
+
+    now = datetime(2026, 10, 24, 22, 30, tzinfo=UTC)
+    assert available_preview_dates(now) == [
+        f"2026-10-{day}" for day in range(26, 32)
+    ] + ["2026-11-01"]
+    assert validate_preview_date(None, now) == "2026-10-26"
+    assert (
+        available_preview_dates(datetime(2026, 3, 28, 23, 30, tzinfo=UTC))[0]
+        == "2026-03-30"
+    )
+    connection = database(user_count=1)
+    dates = []
+
+    async def collect(_env, target):
+        dates.append(target.isoformat())
+        return [], [{"source": "fixture", "status": "ok", "parsed": 0, "matched": 0}]
+
+    env = SimpleNamespace(DB=SQLiteD1(connection), COLLECT_EVENTS=collect)
+    result = asyncio.run(
+        orchestrator.run_digest(
+            env, now=now, target_date="2026-11-01", target_user_id=1
+        )
+    )
+    assert dates == ["2026-11-01"]
+    assert result["plans"]["date"] == "2026-11-01"
+    for invalid in ("2026-11-02", "2026-10-25", "2026-02-30", "20261026", True):
+        with pytest.raises(ValueError):
+            asyncio.run(
+                orchestrator.run_digest(
+                    env, now=now, target_date=invalid, target_user_id=1
+                )
+            )
+    assert dates == ["2026-11-01"]
+
+
+def test_scheduled_runs_obey_delivery_days_while_targeted_previews_ignore_them(
+    monkeypatch,
+):
+    connection = database()
+    checked = []
+
+    async def allowed(_db, user_id, digest_date):
+        checked.append((user_id, digest_date))
+        return user_id == 2
+
+    monkeypatch.setattr(orchestrator, "delivery_allowed", allowed)
+    env = SimpleNamespace(
+        DB=SQLiteD1(connection), COLLECT_EVENTS=fake_collector, RANK_EVENTS=fake_ranker
+    )
+    now = datetime(2026, 9, 4, 8, tzinfo=UTC)
+    summary = asyncio.run(orchestrator.run_digest(env, now=now, dry_run=True))
+    assert summary["rendered_count"] == 1
+    assert summary["skipped_count"] == 1
+    assert checked == [(1, "2026-09-05"), (2, "2026-09-05")]
+    result = asyncio.run(
+        orchestrator.run_digest(env, now=now, dry_run=True, target_user_id=1)
+    )
+    assert result["summary"]["rendered_count"] == 1
+    assert len(checked) == 2
     assert connection.execute("SELECT COUNT(*) FROM jev_evaluations").fetchone()[0] == 0
     status = connection.execute("SELECT status FROM digest_runs").fetchone()[0]
     assert status == "completed"

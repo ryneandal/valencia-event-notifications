@@ -42,4 +42,17 @@ describe('Pages API proxy', () => {
     );
     vi.unstubAllGlobals();
   });
+
+  test('preserves webhook raw bytes and signature header', async () => {
+    const raw = '{ "type": "checkout.session.completed", "note": "València" }\n';
+    const fetchImpl = vi.fn(async () => new Response('{}'));
+    await proxyApiRequest(new Request('https://brisa.example/api/billing/webhook', {
+      method: 'POST', body: raw,
+      headers: { 'stripe-signature': 't=100,v1=obviously-fake', 'content-type': 'application/json' }
+    }), 'https://worker.example', fetchImpl);
+    const request = fetchImpl.mock.calls[0][0];
+    expect(request.url).toBe('https://worker.example/api/billing/webhook');
+    expect(request.headers.get('stripe-signature')).toBe('t=100,v1=obviously-fake');
+    expect(await request.text()).toBe(raw);
+  });
 });

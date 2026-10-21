@@ -1,5 +1,6 @@
 import schema from '../../shared/jev-preview.schema.json';
 import { INTEREST_CLUSTERS, validInterestSelection } from './profile.js';
+import { boundedText, safePublicUrl, validDate, validPublicEvent, validTimestamp } from './planning.js';
 
 export const PREVIEW_CONTRACT_VERSION = 'jev-preview-v1';
 
@@ -12,11 +13,7 @@ const typeChecks = {
 };
 
 function isWebUrl(value) {
-  try {
-    return /^https?:\/\//.test(value) && ['https:', 'http:'].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
+  return safePublicUrl(value);
 }
 
 // Implements the keywords used by the frozen v1 schema, shared with the Worker.
@@ -36,7 +33,7 @@ function matchesSchema(value, rule) {
     if (rule.minLength !== undefined && value.length < rule.minLength) return false;
     if (rule.pattern && !new RegExp(rule.pattern).test(value)) return false;
     if (rule.format === 'uri' && !isWebUrl(value)) return false;
-    if (rule.format === 'date-time' && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(value) || !Number.isFinite(Date.parse(value)))) return false;
+    if (rule.format === 'date-time' && !validTimestamp(value)) return false;
   }
   if (Array.isArray(value)) {
     if (rule.minItems !== undefined && value.length < rule.minItems) return false;
@@ -79,10 +76,55 @@ export function eventTypeLabel(name) {
   return INTEREST_CLUSTERS.find((type) => type.name === name)?.label || name;
 }
 
+function exactKeys(value, keys) {
+  return typeChecks.object(value) && Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.hasOwn(value, key));
+}
+
+const count = (value, max = 1_000_000) => Number.isSafeInteger(value) && value >= 0 && value <= max;
+const recommendationKeys = ['id', 'event_key', 'title', 'url', 'start_at', 'end_at', 'time_precision', 'location', 'description', 'source', 'position', 'reason', 'used_fallback', 'type_decision'];
+
+export function validPreviewPlans(plans, summary) {
+  if (!exactKeys(plans, ['version', 'date', 'checked_at', 'delivery_enabled', 'coverage', 'recommendations', 'excluded_count']) ||
+      plans.version !== 'brisa-plans-v1' || !validDate(plans.date) ||
+      !validTimestamp(plans.checked_at) || typeof plans.delivery_enabled !== 'boolean' ||
+      !exactKeys(plans.coverage, ['state', 'collected_count', 'sources']) ||
+      !count(plans.coverage.collected_count) || plans.coverage.collected_count !== summary.event_count ||
+      !count(plans.excluded_count, plans.coverage.collected_count) ||
+      !Array.isArray(plans.coverage.sources) || plans.coverage.sources.length > 32 ||
+      !Array.isArray(plans.recommendations) || plans.recommendations.length > 100 ||
+      plans.recommendations.length > plans.coverage.collected_count) return false;
+  if (summary.digest_date !== undefined && plans.date !== summary.digest_date) return false;
+  const sourceNames = new Set();
+  for (const source of plans.coverage.sources) {
+    if (!exactKeys(source, ['name', 'status', 'fetched_count', 'event_count', 'checked_at']) ||
+        !boundedText(source.name, 80, 1) || sourceNames.has(source.name) ||
+        !['ok', 'error'].includes(source.status) ||
+        !count(source.fetched_count) || !count(source.event_count) ||
+        !validTimestamp(source.checked_at)) return false;
+    sourceNames.add(source.name);
+  }
+  const checked = plans.coverage.sources.filter((source) => source.status === 'ok').length;
+  const expected = checked === 0 ? 'unavailable' : checked === plans.coverage.sources.length ? 'complete' : 'partial';
+  if (plans.coverage.state !== expected) return false;
+  const ids = new Set();
+  const keys = new Set();
+  for (const [index, event] of plans.recommendations.entries()) {
+    if (!exactKeys(event, recommendationKeys) || !validPublicEvent(event) ||
+        ids.has(event.id) || keys.has(event.event_key) || event.position !== index + 1 ||
+        !boundedText(event.reason, 180, 1) || typeof event.used_fallback !== 'boolean' ||
+        !['eligible', 'irrelevant', 'unknown'].includes(event.type_decision)) return false;
+    ids.add(event.id);
+    keys.add(event.event_key);
+  }
+  return true;
+}
+
 export function parseDigestPreview(payload, selectedTypes) {
   const fail = () => {
     throw new Error('We could not read this preview safely. Please try again.');
   };
+  if (!validInterestSelection(selectedTypes)) fail();
   const summary = payload?.summary;
   if (!summary || typeof summary.correlation_id !== 'string' || summary.dry_run !== true ||
       summary.sent_count !== 0 || !Number.isInteger(summary.event_count) || summary.event_count < 0 ||
@@ -92,10 +134,15 @@ export function parseDigestPreview(payload, selectedTypes) {
   if (summary.failure_count > 0) {
     throw new Error('Brisa could not finish this preview. Please try again.');
   }
+  const plans = payload.plans === undefined ? null : payload.plans;
+  if (plans !== null && !validPreviewPlans(plans, summary)) fail();
+  if (Object.hasOwn(payload, 'plans') && plans === null) fail();
 
   // Older Workers return summary only while the feature is off.
   if (payload.contract_version === undefined && payload.evaluations === undefined) {
-    return { summary, evaluations: null, selectedTypes };
+    // The new plans extension belongs to the versioned envelope.
+    if (plans !== null) fail();
+    return { summary, evaluations: null, selectedTypes, plans: null };
   }
   if (payload.contract_version !== PREVIEW_CONTRACT_VERSION || !Array.isArray(payload.evaluations)) fail();
   const seen = new Set();
@@ -105,5 +152,5 @@ export function parseDigestPreview(payload, selectedTypes) {
         !selectedTypes.every((type) => evaluation.selected_event_types.includes(type))) fail();
     seen.add(evaluation.event.event_key);
   }
-  return { summary, evaluations: payload.evaluations, selectedTypes };
+  return { summary, evaluations: payload.evaluations, selectedTypes, plans };
 }

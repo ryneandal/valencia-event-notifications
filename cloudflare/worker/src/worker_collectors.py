@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 from worker_runtime import env_value
-from worker_storage import upsert_event
+from worker_storage import safe_event_url, upsert_event
 from worker_time import localize_madrid, madrid_noon, to_madrid
 
 FETCH_TIMEOUT_MS = 10_000
@@ -71,8 +71,9 @@ def normalize_start(value: str) -> str:
 
 def parse_rss(text: str, source_url: str) -> list[dict[str, str]]:
     """Parse RSS or Atom items without a Scrapy/Twisted dependency."""
-    del source_url
     root = ET.fromstring(text)
+    if root.tag.split("}")[-1].lower() not in {"rss", "feed", "rdf"}:
+        raise ValueError("invalid_feed")
     events: list[dict[str, str]] = []
     for node in root.iter():
         if node.tag.split("}")[-1] not in {"item", "entry"}:
@@ -90,7 +91,8 @@ def parse_rss(text: str, source_url: str) -> list[dict[str, str]]:
             return ""
 
         title = _clean_text(child_text("title"))
-        url = _clean_text(child_text("link"))
+        raw_url = _clean_text(child_text("link"))
+        url = safe_event_url(urljoin(source_url, raw_url)) if raw_url else None
         raw_start = child_text("pubDate", "published", "updated", "date")
         if not title or not url or not raw_start:
             continue
@@ -102,6 +104,9 @@ def parse_rss(text: str, source_url: str) -> list[dict[str, str]]:
             {
                 "title": title,
                 "start_at": start_at,
+                # RSS publication/update time is not an advertised event time.
+                "time_precision": "unverified",
+                "location": "",
                 "url": url,
                 "description": _clean_text(
                     child_text("description", "summary", "content", "encoded")
@@ -112,6 +117,17 @@ def parse_rss(text: str, source_url: str) -> list[dict[str, str]]:
 
 
 EVENTOS_RE = re.compile(r"var\s+eventosInicio\s*=\s*(\[[\s\S]*?\]);")
+
+
+def _agenda_time_precision(raw_start: str, all_day: Any) -> str:
+    """Only explicit source times qualify; sortable dates remain date-only."""
+    if all_day is True or str(all_day).lower() == "true":
+        return "date"
+    if re.search(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", raw_start):
+        return "datetime"
+    if raw_start.isdigit() and (all_day is False or all_day == "false"):
+        return "datetime"
+    return "date"
 
 
 def parse_ajuntament_agenda(text: str, source_url: str) -> list[dict[str, str]]:
@@ -134,6 +150,9 @@ def parse_ajuntament_agenda(text: str, source_url: str) -> list[dict[str, str]]:
             relative_url = f"/cas/agenda-de-la-ciudad/-/content/{relative_url}"
         if not title or not raw_start or not relative_url:
             continue
+        url = safe_event_url(urljoin(source_url, relative_url))
+        if url is None:
+            continue
         try:
             start_at = normalize_start(raw_start)
         except ValueError:
@@ -147,12 +166,21 @@ def parse_ajuntament_agenda(text: str, source_url: str) -> list[dict[str, str]]:
             end_at = ""
         category = _clean_text(item.get("categoria"))
         description = _clean_text(item.get("description"))
+        precision = _agenda_time_precision(raw_start, item.get("allDay"))
+        if (
+            precision == "datetime"
+            and _agenda_time_precision(raw_end, item.get("allDay")) != "datetime"
+        ):
+            end_at = ""
+        location = item.get("location") or item.get("lugar")
         events.append(
             {
                 "title": title,
                 "start_at": start_at,
                 "end_at": end_at,
-                "url": urljoin(source_url, relative_url),
+                "time_precision": precision,
+                "location": _clean_text(location) if isinstance(location, str) else "",
+                "url": url,
                 "description": ". ".join(
                     part for part in (category, description) if part
                 ),
@@ -205,20 +233,24 @@ async def fetch_source(env: Any, source: Source) -> str:
 
 def _error_code(error: Exception) -> str:
     value = "_".join(str(error).strip().lower().split())
-    if re.fullmatch(r"[a-z0-9_]{1,64}", value):
+    if re.fullmatch(r"http_[45]\d\d", value) or value in {
+        "fetch_runtime_unavailable",
+        "missing_event_payload",
+        "invalid_event_payload",
+    }:
         return value
-    return error.__class__.__name__.lower()[:64]
+    return "source_unavailable"
 
 
 def event_matches_date(event: dict[str, str], target_date: date) -> bool:
     """Include starts, short active ranges, and the final day of longer runs."""
-    start_date = datetime.fromisoformat(event["start_at"]).date()
+    start_date = to_madrid(datetime.fromisoformat(event["start_at"])).date()
     if start_date == target_date:
         return True
     raw_end = event.get("end_at")
     if not raw_end:
         return False
-    end_date = datetime.fromisoformat(raw_end).date()
+    end_date = to_madrid(datetime.fromisoformat(raw_end)).date()
     if not start_date <= target_date <= end_date:
         return False
     return (
@@ -229,9 +261,9 @@ def event_matches_date(event: dict[str, str], target_date: date) -> bool:
 def event_for_target(
     event: dict[str, str], source_name: str, target_date: date
 ) -> dict[str, str]:
-    """Drop transient range state and add useful range context for ranking."""
+    """Retain verified range evidence and add useful context for ranking."""
     selected = {**event, "source": source_name}
-    raw_end = selected.pop("end_at", "")
+    raw_end = selected.get("end_at", "")
     if raw_end:
         start_date = datetime.fromisoformat(selected["start_at"]).date()
         end_date = datetime.fromisoformat(raw_end).date()
@@ -247,7 +279,7 @@ async def collect_events(
     target_date: date,
     sources: tuple[Source, ...] = SOURCES,
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
-    """Collect tomorrow's events while isolating each source failure."""
+    """Collect the selected date while isolating each source failure."""
     matching: list[dict[str, str]] = []
     diagnostics: list[dict[str, Any]] = []
     for source in sources:
@@ -266,6 +298,7 @@ async def collect_events(
                     "status": "ok",
                     "parsed": len(parsed),
                     "matched": len(selected),
+                    "checked_at": datetime.now(UTC).isoformat(),
                 }
             )
         except Exception as error:
@@ -274,6 +307,7 @@ async def collect_events(
                     "source": source.name,
                     "status": "failed",
                     "error_code": _error_code(error),
+                    "checked_at": datetime.now(UTC).isoformat(),
                 }
             )
     return matching, diagnostics
@@ -291,6 +325,9 @@ async def persist_events(db: Any, events: list[dict[str, str]]) -> list[str]:
                 url=event["url"],
                 description=event.get("description", ""),
                 source=event["source"],
+                end_at=event.get("end_at") or None,
+                time_precision=event.get("time_precision", "unverified"),
+                location=event.get("location", ""),
             )
         )
     return sorted(keys)

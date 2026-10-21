@@ -1,0 +1,43 @@
+.planning-tools { margin-top: 2rem; text-align: left; }
+.planning-tools h2, .plan-card h3 { color: var(--ink, #173746); }
+.planning-tools h2 { font-family: Georgia, serif; font-size: 1.5rem; font-weight: 400; }
+.planning-tools p, .preview-coverage, .plan-facts, .planning-service-state, .coverage-note { line-height: 1.6; }
+.plan-list { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.plan-card { padding: 1.25rem; border: 1px solid #deded1; border-radius: 16px; background: #fffdfa; }
+.plan-card h3 { margin: 0 0 .65rem; font-family: Georgia, serif; font-size: 1.3rem; }
+.plan-card a, .planning-tools a { color: #146b6b; text-decoration: underline; text-underline-offset: .2em; }
+.plan-facts { color: #42626b; font-size: .9rem; }
+.plan-actions, .preview-actions, .planning-date-shortcuts, .account-secondary-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin: 1rem 0; }
+.planning-tools button, .plan-actions button, .preview-actions button, .planning-date-shortcuts button, .review-edit, .skip-refinements { min-height: 44px; border: 1px solid #9ab5af; border-radius: 10px; padding: .6rem .9rem; background: #f7fbf7; color: #174c54; font: inherit; cursor: pointer; }
+.planning-tools button:hover, .plan-actions button:hover, .preview-actions button:hover { background: #e7f1e9; }
+.planning-tools button:disabled, .plan-actions button:disabled { opacity: .6; cursor: wait; }
+.planning-tools button:focus-visible, .plan-actions :focus-visible, .planning-date-controls :focus-visible, .review-edit:focus-visible { outline: 3px solid #c15136; outline-offset: 3px; }
+.planning-settings, .preview-other-events, .preview-support { margin: 1.5rem 0; border-top: 1px solid #d7dfd7; padding-top: 1rem; }
+.planning-settings summary, .preview-other-events summary, .preview-support summary { cursor: pointer; font-weight: 700; padding: .4rem 0; }
+.planning-tools fieldset { border: 0; padding: 0; margin: 1rem 0; }
+.planning-tools legend { font-weight: 700; margin-bottom: .5rem; }
+.delivery-days { display: flex; flex-wrap: wrap; gap: .6rem 1rem; margin-bottom: 1rem; }
+.delivery-days label, .planning-tools fieldset > label, .plan-reminder { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.planning-tools input[type="checkbox"] { width: 18px; height: 18px; accent-color: #197c7b; }
+.coverage-table { overflow-x: auto; }
+.coverage-table table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.coverage-table th, .coverage-table td { text-align: left; padding: .6rem; border-bottom: 1px solid #deded1; }
+.coverage-table caption { text-align: left; margin: .5rem 0; }
+.membership-card { padding: 1.25rem; margin-top: 1.5rem; border-radius: 16px; background: #edf3e8; }
+.membership-card button { margin: .4rem .5rem .4rem 0; }
+.plan-status, .preview-feedback { padding: .75rem 1rem; border-radius: 10px; background: #e6f2eb; color: #23574c; }
+.planning-tools [role="alert"] { padding: .75rem; border-left: 3px solid #a6402f; background: #fff1ed; color: #763327; }
+.planning-date-controls { text-align: left; margin: 1.5rem 0; }
+.planning-date-controls select { display: block; width: 100%; padding: .8rem; margin-top: .5rem; border: 1px solid #9ab5af; border-radius: 10px; background: #fffdfa; font: inherit; }
+.planning-local-date { font-size: .9rem; }
+.review-card .review-row { grid-template-columns: minmax(80px, .7fr) minmax(0, 2fr) auto; gap: .75rem; }
+.review-card .review-row strong { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.review-edit { font-size: .8rem; padding: .4rem .65rem; }
+.skip-refinements { margin-top: 1rem; }
+.coverage-note { padding: .75rem; border-left: 3px solid #8da99c; background: #f2f6ee; }
+@media (max-width: 520px) {
+  .plan-card, .membership-card { padding: 1rem; }
+  .review-card .review-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .review-card .review-row > span { grid-column: 1 / -1; }
+  .planning-tools button, .plan-actions button { max-width: 100%; }
+}

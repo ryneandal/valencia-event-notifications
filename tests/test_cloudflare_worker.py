@@ -32,6 +32,8 @@ from worker_email import (  # noqa: E402
 from worker_runtime import request_path  # noqa: E402
 from worker_schedule import handle_scheduled  # noqa: E402
 
+from tests.test_worker_storage import SQLiteD1, database  # noqa: E402
+
 
 class Headers(dict):
     def __init__(self, initial=None):
@@ -190,6 +192,15 @@ class InMemoryStatement:
 
     async def first(self):
         sql = self.sql
+        if sql == "SELECT days FROM delivery_preferences WHERE user_id = ?":
+            return None  # Legacy accounts have no custom delivery schedule.
+        if sql == "SELECT is_subscribed FROM subscriptions WHERE user_id = ?":
+            user = next(
+                (entry for entry in self.state.users if entry["id"] == self.params[0]),
+                None,
+            )
+            return {"is_subscribed": user["is_subscribed"]} if user else None
+
         if sql.startswith(
             "SELECT id, email, preferences_blob, is_active FROM users WHERE email = ?"
         ):
@@ -572,7 +583,7 @@ async def _test_subscription_controls_are_authenticated_and_isolated():
         FakeRequest("https://example.com/api/me", headers={"cookie": second_cookie}),
         runtime_env,
     )
-    assert (await second_user.json())["user"]["is_subscribed"] is True
+    assert (await second_user.json())["user"]["is_subscribed"] is False
 
     resumed = await worker.handle_request(
         FakeRequest(
@@ -600,6 +611,67 @@ async def _test_subscription_controls_are_authenticated_and_isolated():
 
 def test_registration_verification_and_preferences():
     asyncio.run(_test_registration_verification_and_preferences())
+
+
+@pytest.mark.parametrize(
+    ("existing_active", "existing_subscription", "expected_subscribed"),
+    [
+        (None, None, False),
+        (False, None, True),
+        (True, None, True),
+        (False, False, False),
+        (False, True, True),
+        (True, False, False),
+    ],
+)
+def test_signup_pauses_email_without_changing_existing_accounts(
+    existing_active, existing_subscription, expected_subscribed
+):
+    connection = database()
+    if existing_active is not None:
+        connection.execute(
+            "INSERT INTO users(id,email,is_active) VALUES (1,?,?)",
+            ("reader@example.com", int(existing_active)),
+        )
+        if existing_subscription is not None:
+            connection.execute(
+                "INSERT INTO subscriptions(user_id,is_subscribed) VALUES (1,?)",
+                (int(existing_subscription),),
+            )
+        connection.commit()
+    runtime_env = env(DB=SQLiteD1(connection))
+
+    async def exercise():
+        if existing_active:
+            response = await worker.handle_request(
+                FakeRequest(
+                    "https://example.com/api/login",
+                    method="POST",
+                    payload={"email": "reader@example.com"},
+                ),
+                runtime_env,
+            )
+        else:
+            response = await register(runtime_env, "reader@example.com")
+        assert response.status == 202
+        verified = await verify(runtime_env, delivered_token(runtime_env))
+        assert verified.status == 200
+        assert (await verified.json())["user"]["is_subscribed"] is expected_subscribed
+        cookie = cookie_from_set_cookie(verified.headers["set-cookie"])
+        current = await worker.handle_request(
+            FakeRequest("https://example.com/api/me", headers={"cookie": cookie}),
+            runtime_env,
+        )
+        assert (await current.json())["user"]["is_subscribed"] is expected_subscribed
+        row = connection.execute(
+            "SELECT is_subscribed FROM subscriptions WHERE user_id=1"
+        ).fetchone()
+        if existing_active is not None and existing_subscription is None:
+            assert row is None  # Missing legacy preferences keep their old default.
+        else:
+            assert bool(row[0]) is expected_subscribed
+
+    asyncio.run(exercise())
 
 
 def test_mailgun_request_helpers():
@@ -674,6 +746,58 @@ def test_invalid_inputs_and_session_are_rejected():
 
 def test_subscription_controls_are_authenticated_and_isolated():
     asyncio.run(_test_subscription_controls_are_authenticated_and_isolated())
+
+
+def test_resuming_requires_a_selected_delivery_day():
+    connection = database()
+    connection.execute(
+        "INSERT INTO users(id,email,is_active) VALUES (1,'reader@example.com',1)"
+    )
+    connection.execute(
+        "INSERT INTO sessions(user_id,token_hash,expires_at) "
+        "VALUES (1,?,datetime('now','+1 hour'))",
+        (sha256_hex("test-session"),),
+    )
+    connection.commit()
+    runtime_env = env(DB=SQLiteD1(connection))
+
+    async def update(path, payload):
+        return await worker.handle_request(
+            FakeRequest(
+                "https://example.com" + path,
+                method="PATCH",
+                headers={"cookie": "ve_session=test-session"},
+                payload=payload,
+            ),
+            runtime_env,
+        )
+
+    async def exercise():
+        paused = await update(
+            "/api/planning/delivery", {"days": [], "subscribed": False}
+        )
+        assert paused.status == 200
+        resumed = await update("/api/subscription", {"subscribed": True})
+        assert resumed.status == 422
+        assert (await resumed.json())["error"] == (
+            "Choose at least one event day in Email preferences before resuming."
+        )
+        assert (
+            connection.execute(
+                "SELECT is_subscribed FROM subscriptions WHERE user_id=1"
+            ).fetchone()[0]
+            == 0
+        )
+
+        selected = await update(
+            "/api/planning/delivery", {"days": [5], "subscribed": False}
+        )
+        assert selected.status == 200
+        resumed = await update("/api/subscription", {"subscribed": True})
+        assert resumed.status == 200
+        assert (await resumed.json())["user"]["is_subscribed"] is True
+
+    asyncio.run(exercise())
 
 
 def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch):
@@ -849,6 +973,184 @@ def test_digest_coordinator_runs_pipeline_with_utc_time(capsys):
 def test_digest_dispatch_requires_binding():
     with pytest.raises(RuntimeError, match="missing_digest_coordinator_binding"):
         asyncio.run(dispatch_digest(SimpleNamespace()))
+
+
+def test_preview_date_request_is_validated_before_dispatch_and_keeps_bodyless_posts(
+    monkeypatch,
+):
+    import worker_app
+    from worker_time import validate_preview_date
+
+    now = datetime(2026, 10, 24, 22, 30, tzinfo=UTC)
+    monkeypatch.setattr(
+        worker_app,
+        "validate_preview_date",
+        lambda value: validate_preview_date(value, now),
+    )
+    calls = []
+
+    class Stub:
+        async def run(self, *args):
+            calls.append(args)
+            return {"summary": {"dry_run": True}}
+
+    class Namespace:
+        def getByName(self, _name):  # noqa: N802
+            return Stub()
+
+    class BodyRequest(FakeRequest):
+        async def text(self):
+            return self._payload
+
+    async def exercise():
+        runtime_env = env()
+        runtime_env.DIGEST_COORDINATOR = Namespace()
+        await register(runtime_env)
+        verified = await verify(runtime_env, delivered_token(runtime_env))
+        cookie = cookie_from_set_cookie(verified.headers["set-cookie"])
+        for raw in ("", "{}", '{"date":"2026-11-01","user_id":999}'):
+            response = await worker.handle_request(
+                BodyRequest(
+                    "https://example.com/api/digest/dry-run",
+                    method="POST",
+                    headers={"cookie": cookie},
+                    payload=raw,
+                ),
+                runtime_env,
+            )
+            assert response.status == 200
+        assert calls == [
+            (None, True, 1),
+            (None, True, 1),
+            (None, True, 1, "2026-11-01"),
+        ]
+        for raw in (
+            '{"date":"2026-11-02"}',
+            '{"date":"2026-10-25"}',
+            '{"date":null}',
+            '{"date":true}',
+            '{"date":"2026-02-30"}',
+            "null",
+            "[]",
+            "{invalid",
+        ):
+            response = await worker.handle_request(
+                BodyRequest(
+                    "https://example.com/api/digest/dry-run",
+                    method="POST",
+                    headers={"cookie": cookie},
+                    payload=raw,
+                ),
+                runtime_env,
+            )
+            assert response.status == 422
+            assert (await response.json())["field"] == "date"
+        assert len(calls) == 3
+
+    asyncio.run(exercise())
+
+
+def test_digest_coordinator_carries_selected_date_without_changing_scheduled_default():
+    calls = []
+
+    async def runner(_env, **kwargs):
+        calls.append(kwargs)
+        return {"ok": True}
+
+    coordinator = DigestCoordinator(object(), SimpleNamespace(RUN_DIGEST=runner))
+    asyncio.run(coordinator.run(None, True, 7, "2026-10-28"))
+    assert calls[0]["target_date"] == "2026-10-28"
+    assert calls[0]["target_user_id"] == 7
+
+
+def test_digest_coordinator_serializes_overlapping_preview_runs():
+    async def exercise():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        calls = []
+
+        async def runner(_env, **kwargs):
+            user_id = kwargs["target_user_id"]
+            calls.append(("started", user_id))
+            if user_id == 1:
+                started.set()
+                await release.wait()
+            calls.append(("finished", user_id))
+            return {"user_id": user_id}
+
+        coordinator = DigestCoordinator(object(), SimpleNamespace(RUN_DIGEST=runner))
+        first = asyncio.create_task(coordinator.run(None, True, 1))
+        await started.wait()
+        second = asyncio.create_task(coordinator.run(None, True, 2))
+        await asyncio.sleep(0)
+        assert calls == [("started", 1)]
+        release.set()
+        await asyncio.gather(first, second)
+        assert calls == [
+            ("started", 1),
+            ("finished", 1),
+            ("started", 2),
+            ("finished", 2),
+        ]
+
+    asyncio.run(exercise())
+
+
+def test_planning_and_billing_dispatch_authenticate_accounts_but_not_signed_webhooks(
+    monkeypatch,
+):
+    import worker_app
+    from worker_http import json_response
+
+    calls = []
+
+    async def planning(_env, _request, user, path, method):
+        calls.append((user["id"], path, method))
+        return json_response({"ok": True})
+
+    async def webhook(_env, _request):
+        calls.append("signature-check-boundary")
+        return json_response({"error": "Invalid signature"}, 400)
+
+    monkeypatch.setattr(worker_app, "handle_planning_request", planning)
+    monkeypatch.setattr(worker_app, "handle_billing_request", planning)
+    monkeypatch.setattr(worker_app, "handle_billing_webhook", webhook)
+
+    async def exercise():
+        runtime_env = env()
+        for path in (
+            "/api/planning",
+            "/api/planning/saved",
+            "/api/billing",
+            "/api/billing/checkout",
+        ):
+            response = await worker.handle_request(
+                FakeRequest("https://example.com" + path, method="POST"), runtime_env
+            )
+            assert response.status == 401
+        assert calls == []
+        response = await worker.handle_request(
+            FakeRequest("https://example.com/api/billing/webhook", method="POST"),
+            runtime_env,
+        )
+        assert response.status == 400
+        assert calls == ["signature-check-boundary"]
+        await register(runtime_env)
+        verified = await verify(runtime_env, delivered_token(runtime_env))
+        cookie = cookie_from_set_cookie(verified.headers["set-cookie"])
+        response = await worker.handle_request(
+            FakeRequest(
+                "https://example.com/api/planning/saved",
+                method="POST",
+                headers={"cookie": cookie},
+                payload={"user_id": 999},
+            ),
+            runtime_env,
+        )
+        assert response.status == 200
+        assert calls[-1] == (1, "/api/planning/saved", "POST")
+
+    asyncio.run(exercise())
 
 
 def test_worker_scheduled_entrypoint_delegates(monkeypatch):

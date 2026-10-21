@@ -1,6 +1,6 @@
 # Project Tasks
 
-Last reviewed for the bounded-interest and Jev work: 2026-10-21.
+Last reviewed for planning and paid-membership preparation: 2026-10-22.
 
 - [x] **Core Infrastructure**
     - [x] Project scaffolding
@@ -91,6 +91,38 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
     - [x] Add `wrangler deploy --dry-run` validation to CI and rename the
       Cloudflare job for frontend + Worker scope
     - [x] [RYN-131](https://linear.app/ryneandal/issue/RYN-131/align-terraform-with-the-deployed-pages-and-worker-configuration): align Terraform compatibility settings and the Git-connected Pages build command
+
+- [ ] **Planning experience and paid membership launch**
+  (See [planning contract](specs/planning-experience-contract.md) and
+  [membership launch guide](specs/membership-launch.md). Implementation is local;
+  production migration, payment verification, and activation remain pending.)
+    - [x] Implement four-step onboarding with explicit audience choice, optional
+      refinements, readable review, section editing, and saved-field preservation
+    - [x] Start new accounts with email digests paused until explicit opt-in,
+      while retaining existing subscription state and legacy defaults
+    - [x] Add ranked plans, honest collection/empty states, conservative event
+      time precision, a seven-day date chooser, and stale-preview cancellation
+    - [x] Add private saved plans, public copy/calendar actions, delivery-day
+      controls, and public source-check history
+    - [x] Add explicit study consent, voluntary feedback, opt-out deletion, and
+      30-day consent/feedback cleanup without event names or profile tracking
+    - [x] Prepare Stripe-hosted Checkout and customer portal for a EUR 3/month
+      development-support membership, signed webhook synchronization, and
+      separate test/live account state; retain `BILLING_ENABLED=false`
+    - [x] Guard billing updates against unrelated-product events, delayed
+      snapshots, and older cancellations; refresh completed/expired Checkout
+      sessions so canceled members can subscribe again immediately
+    - [x] Add offline frontend/Worker regressions, additive migrations 0002–0004,
+      synchronized fresh schema, and the Stripe launch runbook
+    - [ ] Apply the new migrations and deploy Worker before matching Pages;
+      verify account controls and public health without enabling digest delivery
+    - [ ] Confirm the EUR 3/month offer and configure Stripe Price, portal,
+      webhook endpoint, and encrypted Worker secrets
+    - [ ] Complete isolated Stripe test-mode checkout, webhook/retry, and
+      customer-portal lifecycle verification
+    - [ ] Verify live configuration, enable billing, and record a controlled
+      live purchase, subscription synchronization, and cancellation; no paid
+      lifecycle test or live charge has been completed in this implementation
 
 - [ ] **Testing**
     - [x] [RYN-133](https://linear.app/ryneandal/issue/RYN-133/expand-normalization-boundary-and-malformed-input-tests): add focused normalization boundary and malformed-input tests

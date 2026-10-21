@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -30,6 +31,7 @@ async def dispatch_digest(
     scheduled_time_ms: int | float | None = None,
     dry_run: bool = True,
     target_user_id: int | None = None,
+    target_date: str | None = None,
 ) -> dict[str, Any]:
     """Dispatch a digest run across the Durable Object execution boundary."""
     namespace = env_value(env, "DIGEST_COORDINATOR")
@@ -37,6 +39,8 @@ async def dispatch_digest(
         raise RuntimeError("missing_digest_coordinator_binding")
 
     stub = namespace.getByName(DIGEST_COORDINATOR_NAME)
+    if target_date is not None:
+        return await stub.run(scheduled_time_ms, dry_run, target_user_id, target_date)
     return await stub.run(scheduled_time_ms, dry_run, target_user_id)
 
 
@@ -48,6 +52,22 @@ class DigestCoordinator(DurableObject):
         scheduled_time_ms: int | float | None = None,
         dry_run: bool = True,
         target_user_id: int | None = None,
+        target_date: str | None = None,
+    ) -> dict[str, Any]:
+        invocation_time = _invocation_time(scheduled_time_ms)
+        if not hasattr(self, "_run_lock"):
+            self._run_lock = asyncio.Lock()
+        async with self._run_lock:
+            return await self._run_serialized(
+                invocation_time, dry_run, target_user_id, target_date
+            )
+
+    async def _run_serialized(
+        self,
+        invocation_time: datetime,
+        dry_run: bool,
+        target_user_id: int | None,
+        target_date: str | None,
     ) -> dict[str, Any]:
         print(
             json.dumps(
@@ -60,9 +80,11 @@ class DigestCoordinator(DurableObject):
             )
         )
         runner = env_value(self.env, "RUN_DIGEST", run_digest)
+        extra = {"target_date": target_date} if target_date is not None else {}
         return await runner(
             self.env,
-            now=_invocation_time(scheduled_time_ms),
+            now=invocation_time,
             dry_run=bool(dry_run),
             target_user_id=target_user_id,
+            **extra,
         )

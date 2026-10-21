@@ -1,10 +1,118 @@
 import hashlib
 import json
+import re
+from datetime import datetime
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from worker_runtime import to_python
+from worker_time import localize_madrid, to_madrid
 
 MAX_DELIVERY_ATTEMPTS = 3
+
+
+def safe_event_url(value: Any) -> str | None:
+    """Allow public HTTP links, never credential-bearing or ambiguous URLs."""
+    if not isinstance(value, str) or not 1 <= len(value) <= 4096:
+        return None
+    try:
+        if len(value.encode("utf-16-le")) > 8192:
+            return None
+    except UnicodeEncodeError:
+        return None
+    if re.search(r"[\s\\\x00-\x1f\x7f]", value):
+        return None
+    try:
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or parts.username is not None
+            or parts.password is not None
+            or "%" in parts.hostname
+            or re.match(
+                r"^/(?:api|account|login|signin|sign-in|verify|onboarding)(?:/|$)",
+                parts.path,
+                re.IGNORECASE,
+            )
+            or any(
+                re.fullmatch(
+                    r"token|access_token|auth|authorization|session|session_id|email|password|user_id|account_id|magic_link",
+                    key,
+                    re.IGNORECASE,
+                )
+                for key, _ in parse_qsl(parts.query, keep_blank_values=True)
+            )
+        ):
+            return None
+        _ = parts.port
+    except ValueError:
+        return None
+    return urlunsplit(parts)
+
+
+def public_text(value: Any, limit: int) -> str:
+    """Bound by browser UTF-16 length and strip unsafe control characters."""
+    if not isinstance(value, str):
+        return ""
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", value).strip()
+    return value.encode("utf-16-le", errors="ignore")[: limit * 2].decode(
+        "utf-16-le", errors="ignore"
+    )
+
+
+def public_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Project canonical public evidence without account or ranking data."""
+    identifier = event.get("id")
+    key = event.get("event_key")
+    title = public_text(event.get("title"), 500)
+    source = public_text(event.get("source"), 80)
+    url = safe_event_url(event.get("url"))
+    if (
+        type(identifier) is not int
+        or not 0 < identifier <= 9_007_199_254_740_991
+        or not isinstance(key, str)
+        or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", key)
+        or not title
+        or not source
+        or url is None
+    ):
+        raise ValueError("invalid_event")
+    try:
+        start = datetime.fromisoformat(event["start_at"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid_event") from exc
+    precision = event.get("time_precision", "unverified")
+    if precision not in {"date", "datetime", "unverified"}:
+        precision = "unverified"
+    if start.tzinfo is None:
+        start = localize_madrid(start)
+        precision = "unverified"
+    try:
+        start = to_madrid(start)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError("invalid_event") from exc
+    end = None
+    if event.get("end_at"):
+        try:
+            candidate = datetime.fromisoformat(event["end_at"])
+            if candidate.tzinfo is not None and candidate > start:
+                end = to_madrid(candidate).isoformat()
+        except (TypeError, ValueError, OverflowError):
+            pass
+
+    return {
+        "id": identifier,
+        "event_key": key,
+        "title": title,
+        "url": url,
+        "start_at": start.isoformat(),
+        "end_at": end,
+        "time_precision": precision,
+        "location": public_text(event.get("location"), 500),
+        "description": public_text(event.get("description"), 8000),
+        "source": source,
+    }
 
 
 def _nullable_d1_value(value: Any) -> Any:
@@ -80,7 +188,8 @@ async def list_events_for_date(db: Any, digest_date: str) -> list[dict[str, Any]
     result = await (
         db.prepare(
             """
-            SELECT id, event_key, title, start_at, url, description, source
+            SELECT id, event_key, title, start_at, end_at, time_precision,
+                   location, url, description, source
             FROM events
             WHERE substr(start_at, 1, 10) = ?
             ORDER BY start_at, title, event_key
@@ -102,7 +211,8 @@ async def list_events_by_keys(db: Any, keys: list[str]) -> list[dict[str, Any]]:
     result = await (
         db.prepare(
             f"""
-            SELECT id, event_key, title, start_at, url, description, source
+            SELECT id, event_key, title, start_at, end_at, time_precision,
+                   location, url, description, source
             FROM events
             WHERE event_key IN ({placeholders})
             ORDER BY start_at, title, event_key
@@ -122,6 +232,9 @@ async def upsert_event(
     url: str,
     description: str,
     source: str,
+    end_at: str | None = None,
+    time_precision: str = "unverified",
+    location: str = "",
 ) -> str:
     """Insert a normalized event or refresh its mutable source fields."""
     key = event_key(title, start_at, url)
@@ -129,18 +242,61 @@ async def upsert_event(
         db.prepare(
             """
             INSERT INTO events (
-              event_key, title, start_at, url, description, source
-            ) VALUES (?, ?, ?, ?, ?, ?)
+              event_key, title, start_at, url, description, source,
+              end_at, time_precision, location
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_key) DO UPDATE SET
               description = excluded.description,
               source = excluded.source,
+              end_at = excluded.end_at,
+              time_precision = excluded.time_precision,
+              location = excluded.location,
               last_seen_at = CURRENT_TIMESTAMP
             """
         )
-        .bind(key, title, start_at, url, description, source)
+        .bind(
+            key,
+            title,
+            start_at,
+            url,
+            description,
+            source,
+            _nullable_d1_value(end_at or None),
+            time_precision,
+            location,
+        )
         .run()
     )
     return key
+
+
+async def record_source_checks(
+    db: Any, checked_date: str, sources: list[dict[str, Any]]
+) -> None:
+    """Store public collection evidence, independent of the requesting account."""
+    for source in sources:
+        await (
+            db.prepare(
+                """
+                INSERT INTO source_checks (
+                  checked_date, source, status, fetched_count, event_count,
+                  checked_at, error_code
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """
+            )
+            .bind(
+                checked_date,
+                source["name"],
+                source["status"],
+                source["fetched_count"],
+                source["event_count"],
+                source["checked_at"],
+                _nullable_d1_value(
+                    "source_unavailable" if source["status"] == "error" else None
+                ),
+            )
+            .run()
+        )
 
 
 async def get_or_create_digest_run(
@@ -449,6 +605,11 @@ async def delete_expired_history(
         "DELETE FROM jev_answer_cache "
         "WHERE datetime(created_at) < datetime('now', '-90 days')"
     ).run()
+    await (
+        db.prepare("DELETE FROM source_checks WHERE checked_date < ?")
+        .bind(digest_date_before)
+        .run()
+    )
     deliveries = await (
         db.prepare(
             """
@@ -490,6 +651,10 @@ async def delete_expired_history(
               AND NOT EXISTS (
                 SELECT 1 FROM jev_evaluations
                 WHERE jev_evaluations.event_id = events.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM saved_events
+                WHERE saved_events.event_id = events.id
               )
             """
         )

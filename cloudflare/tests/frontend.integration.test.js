@@ -12,19 +12,43 @@ import { validateOnboardingStep } from '../pages/src/onboarding.js';
 import {
   DEFAULT_FORM_STATE,
   INTEREST_CLUSTERS,
+  LOCATION_OPTIONS,
+  NEGATIVE_SIGNAL_OPTIONS,
+  POSITIVE_SIGNAL_OPTIONS,
+  SEASONAL_ANCHORS,
   buildPersonalizationProfile,
   hydrateFormState
 } from '../pages/src/profile.js';
 
+const chosenForm = {
+  ...DEFAULT_FORM_STATE,
+  audience: 'family_with_school_age_kids',
+  interests: ['local_festivals_spectacle', 'parks_and_play'],
+  positiveSignals: ['interactive', 'outdoors', 'daytime', 'near_transit'],
+  negativeSignals: ['starts_after_20', 'crowd_extreme'],
+  seasonalAnchors: ['Fallas', 'Gran_Feria_de_Julio']
+};
+
 describe('personalisation onboarding contract', () => {
+  test('starts without an audience, event types, or optional family assumptions', () => {
+    expect(DEFAULT_FORM_STATE).toMatchObject({
+      audience: '', interests: [], positiveSignals: [], negativeSignals: [], seasonalAnchors: []
+    });
+    expect(DEFAULT_FORM_STATE.locations).toEqual(['Valencia city']);
+    expect(hydrateFormState('new@example.com', null)).toEqual({ ...DEFAULT_FORM_STATE, email: 'new@example.com' });
+  });
+
   test('returns field-specific errors for every required onboarding selection', () => {
-    expect(validateOnboardingStep(0, { ...DEFAULT_FORM_STATE, email: 'not-an-email' })).toEqual({
+    expect(validateOnboardingStep(0, DEFAULT_FORM_STATE).field).toBe('audience');
+    expect(validateOnboardingStep(3, { ...chosenForm, email: 'not-an-email' })).toEqual({
       field: 'email',
       message: 'Enter a valid email address.'
     });
-    expect(validateOnboardingStep(2, { ...DEFAULT_FORM_STATE, locations: [] }).field).toBe('locations');
-    expect(validateOnboardingStep(3, { ...DEFAULT_FORM_STATE, interests: [] }).field).toBe('interests');
-    expect(validateOnboardingStep(0, { ...DEFAULT_FORM_STATE, email: 'family@example.com' })).toBeNull();
+    expect(validateOnboardingStep(0, { ...chosenForm, locations: [] }).field).toBe('locations');
+    expect(validateOnboardingStep(1, { ...chosenForm, interests: [] }).field).toBe('interests');
+    expect(validateOnboardingStep(0, chosenForm)).toBeNull();
+    expect(validateOnboardingStep(2, DEFAULT_FORM_STATE)).toBeNull();
+    expect(validateOnboardingStep(3, { ...chosenForm, email: 'family@example.com' })).toBeNull();
   });
 
   test.each([
@@ -56,7 +80,7 @@ describe('personalisation onboarding contract', () => {
   });
 
   test('builds the exact profile shape consumed by the Python ranker', () => {
-    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
+    const profile = buildPersonalizationProfile(chosenForm);
 
     expect(Object.keys(profile)).toEqual([
       'audience',
@@ -78,16 +102,29 @@ describe('personalisation onboarding contract', () => {
   });
 
   test('hydrates a saved profile without renaming or dropping selections', () => {
-    const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
+    const profile = buildPersonalizationProfile(chosenForm);
     const hydrated = hydrateFormState('family@example.com', JSON.stringify(profile));
 
     expect(hydrated.email).toBe('family@example.com');
-    expect(hydrated.audience).toBe(DEFAULT_FORM_STATE.audience);
-    expect(hydrated.locations).toEqual(DEFAULT_FORM_STATE.locations);
-    expect(hydrated.interests).toEqual(DEFAULT_FORM_STATE.interests);
-    expect(hydrated.positiveSignals).toEqual(DEFAULT_FORM_STATE.positiveSignals);
-    expect(hydrated.negativeSignals).toEqual(DEFAULT_FORM_STATE.negativeSignals);
-    expect(hydrated.seasonalAnchors).toEqual(DEFAULT_FORM_STATE.seasonalAnchors);
+    expect(hydrated.audience).toBe(chosenForm.audience);
+    expect(hydrated.locations).toEqual(chosenForm.locations);
+    expect(hydrated.interests).toEqual(chosenForm.interests);
+    expect(hydrated.positiveSignals).toEqual(chosenForm.positiveSignals);
+    expect(hydrated.negativeSignals).toEqual(chosenForm.negativeSignals);
+    expect(hydrated.seasonalAnchors).toEqual(chosenForm.seasonalAnchors);
+  });
+
+  test('preserves every supported saved field, including older area preferences', () => {
+    const saved = buildPersonalizationProfile({
+      ...chosenForm,
+      locations: LOCATION_OPTIONS.map(({ value }) => value),
+      interests: INTEREST_CLUSTERS.map(({ name }) => name),
+      positiveSignals: POSITIVE_SIGNAL_OPTIONS.map(([value]) => value),
+      negativeSignals: NEGATIVE_SIGNAL_OPTIONS.map(([value]) => value),
+      seasonalAnchors: SEASONAL_ANCHORS.map(({ name }) => name)
+    });
+    const restored = hydrateFormState('reader@example.com', JSON.stringify(saved));
+    expect(buildPersonalizationProfile(restored)).toEqual(saved);
   });
 
   test('round-trips every bounded event type and discards unsupported saved choices', () => {
@@ -106,7 +143,7 @@ describe('personalisation onboarding contract', () => {
 
   test.each([[], ['custom_type'], ['live_music', 'live_music'], Array(13).fill('film')])(
     'rejects an empty or unsupported event-type selection: %j', (interests) => {
-      expect(validateOnboardingStep(3, { ...DEFAULT_FORM_STATE, interests })).toEqual({
+      expect(validateOnboardingStep(1, { ...DEFAULT_FORM_STATE, interests })).toEqual({
         field: 'interests', message: 'Choose at least one event type from the list.'
       });
     }
@@ -221,6 +258,18 @@ describe('personalisation onboarding contract', () => {
     expect(path).toBe('/api/digest/dry-run');
     expect(options.method).toBe('POST');
     expect(options.credentials).toBe('include');
+    expect(options.body).toBeUndefined();
     expect(payload.summary).toMatchObject({ dry_run: true, sent_count: 0 });
+  });
+
+  test('sends only the chosen date and preserves cancellation for a future preview', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ summary: {} }), { status: 200 }));
+    const controller = new AbortController();
+    await runDigestPreview(fetchImpl, { date: '2026-10-25', signal: controller.signal });
+    const [path, options] = fetchImpl.mock.calls[0];
+    expect(path).toBe('/api/digest/dry-run');
+    expect(JSON.parse(options.body)).toEqual({ date: '2026-10-25' });
+    expect(options.signal).toBe(controller.signal);
+    expect(options.credentials).toBe('include');
   });
 });

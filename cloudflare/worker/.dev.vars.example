@@ -1,2 +1,11 @@
 # Copy to .dev.vars for local Worker development. Never commit real values.
 MAILGUN_API_KEY=your_domain_sending_key
+
+# Billing stays closed until the Stripe test setup is ready.
+BILLING_ENABLED=false
+DIGEST_DELIVERY_ENABLED=false
+# Set these only in your untracked .dev.vars, using matching Stripe test values.
+# STRIPE_PRICE_ID=
+# STRIPE_SECRET_KEY=
+# STRIPE_WEBHOOK_SECRET=
+# Production setup: specs/membership-launch.md; secrets belong in the Worker.

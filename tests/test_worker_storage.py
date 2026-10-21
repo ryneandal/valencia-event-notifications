@@ -208,6 +208,124 @@ def test_event_batch_lookup_uses_collector_keys_not_original_start_date():
     assert asyncio.run(storage.list_events_by_keys(db, [])) == []
 
 
+def test_event_metadata_and_nullable_end_persist_across_js_boundary(js_d1):
+    connection, db = js_d1
+    key = asyncio.run(
+        storage.upsert_event(
+            db,
+            title="Date-only event",
+            start_at="2026-10-22T12:00:00+02:00",
+            url="https://example.com/event",
+            description="Public",
+            source="fixture",
+            time_precision="date",
+            location="Centre del Carme",
+        )
+    )
+    event = asyncio.run(storage.list_events_by_keys(db, [key]))[0]
+    assert event["end_at"] is None
+    assert event["time_precision"] == "date"
+    assert event["location"] == "Centre del Carme"
+    asyncio.run(
+        storage.record_source_checks(
+            db,
+            "2026-10-22",
+            [
+                {
+                    "name": "fixture",
+                    "status": "ok",
+                    "fetched_count": 3,
+                    "event_count": 1,
+                    "checked_at": "2026-10-21T12:00:00+00:00",
+                }
+            ],
+        )
+    )
+    row = connection.execute("SELECT status, error_code FROM source_checks").fetchone()
+    assert tuple(row) == ("ok", None)
+
+
+def test_planning_migration_preserves_legacy_events_as_unverified():
+    connection = sqlite3.connect(":memory:")
+    connection.executescript("""
+        CREATE TABLE events (id INTEGER PRIMARY KEY, title TEXT, start_at TEXT);
+        INSERT INTO events VALUES (7, 'Legacy listing', '2026-10-22T12:00:00+02:00');
+    """)
+    migration = WORKER_PATH.parent.parent / "migrations" / "0002_event_planning.sql"
+    connection.executescript(migration.read_text())
+    row = connection.execute(
+        "SELECT id, time_precision, end_at, location FROM events"
+    ).fetchone()
+    assert row == (7, "unverified", None, "")
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute("UPDATE events SET time_precision = 'assumed'")
+
+
+def test_public_event_is_bounded_public_only_and_conservative_for_legacy_times():
+    event = {
+        "id": 7,
+        "event_key": "legacy",
+        "title": "🎵" * 600 + "\x00",
+        "url": "https://example.com/event",
+        "start_at": "2026-10-22",
+        "source": "fixture",
+        "email": "private@example.com",
+        "session": "private",
+        "location": "Known venue\x01",
+        "description": "Public description",
+    }
+    public = storage.public_event(event)
+    assert len(public["title"].encode("utf-16-le")) == 1000
+    assert public["time_precision"] == "unverified"
+    assert public["start_at"] == "2026-10-22T00:00:00+02:00"
+    assert public["end_at"] is None
+    assert public["location"] == "Known venue"
+    assert "email" not in public and "session" not in public
+    for url in (
+        "javascript:alert(1)",
+        "https://reader:password@example.com/event",
+        "https://example.com/event?token=private",
+        "https://example.com/event?token",
+        "https://example.com/account/profile",
+        "https://exa%mple.com/event",
+    ):
+        with pytest.raises(ValueError, match="invalid_event"):
+            storage.public_event({**event, "url": url})
+    with pytest.raises(ValueError, match="invalid_event"):
+        storage.public_event({**event, "id": True})
+
+
+def test_history_cleanup_preserves_saved_events():
+    connection = database()
+    user_id, _ = seed_user_and_run(connection)
+    for key in ("saved", "unsaved"):
+        connection.execute(
+            """
+            INSERT INTO events (event_key, title, start_at, url, source, last_seen_at)
+            VALUES (?, 'Old listing', '2026-01-01T12:00:00+01:00',
+                    'https://example.com/event', 'fixture', '2026-01-01')
+        """,
+            (key,),
+        )
+    saved_id = connection.execute(
+        "SELECT id FROM events WHERE event_key='saved'"
+    ).fetchone()[0]
+    connection.execute(
+        "INSERT INTO saved_events (user_id, event_id) VALUES (?, ?)",
+        (user_id, saved_id),
+    )
+    connection.commit()
+    result = asyncio.run(
+        storage.delete_expired_history(
+            SQLiteD1(connection),
+            digest_date_before="2026-10-01",
+            event_last_seen_before="2026-10-01",
+        )
+    )
+    assert result["events"] == 1
+    assert connection.execute("SELECT event_key FROM events").fetchone()[0] == "saved"
+
+
 def test_active_subscriber_selection_excludes_paused_and_unverified_users():
     connection = database()
     db = SQLiteD1(connection)

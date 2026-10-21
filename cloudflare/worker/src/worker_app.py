@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from worker_auth import (
@@ -14,9 +15,11 @@ from worker_auth import (
     resolve_session_user,
     sha256_hex,
 )
+from worker_billing import handle_billing_request, handle_billing_webhook
 from worker_durable import dispatch_digest
 from worker_email import DeliveryConfigurationError, deliver_magic_link
 from worker_http import AppResponse, json_response
+from worker_planning import delivery_days, handle_planning_request
 from worker_preferences import normalize_preferences_blob
 from worker_runtime import (
     env_value,
@@ -25,6 +28,7 @@ from worker_runtime import (
     request_json,
     request_path,
 )
+from worker_time import validate_preview_date
 
 
 def user_payload(user: dict[str, Any]) -> dict[str, Any]:
@@ -69,6 +73,9 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
 
     if path == "/api/health" and method == "GET":
         return json_response({"ok": True})
+
+    if path == "/api/billing/webhook" and method == "POST":
+        return await handle_billing_webhook(env, request)
 
     if path == "/api/register" and method == "POST":
         try:
@@ -134,6 +141,13 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
                 )
                 .bind(email)
                 .first()
+            )
+            await (
+                db.prepare(
+                    "INSERT INTO subscriptions (user_id, is_subscribed) VALUES (?, ?)"
+                )
+                .bind(user["id"], 0)
+                .run()
             )
 
         delivery_error = await send_magic_link(
@@ -226,6 +240,16 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         if not user or not user.get("is_active"):
             return json_response({"error": "Invalid or expired token"}, 401)
 
+        subscription = record_to_dict(
+            await db.prepare(
+                "SELECT is_subscribed FROM subscriptions WHERE user_id = ?"
+            )
+            .bind(user["id"])
+            .first()
+        )
+        user["is_subscribed"] = (
+            bool(subscription["is_subscribed"]) if subscription else True
+        )
         session_token = await create_session(env, user["id"], session_ttl_hours)
         return json_response(
             {"user": user_payload(user)},
@@ -303,6 +327,14 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         subscribed = payload.get("subscribed")
         if not isinstance(subscribed, bool):
             return json_response({"error": "subscribed must be a boolean"}, 400)
+        if subscribed and not await delivery_days(env_value(env, "DB"), user["id"]):
+            return json_response(
+                {
+                    "error": "Choose at least one event day in Email preferences "
+                    "before resuming."
+                },
+                422,
+            )
 
         await (
             env_value(env, "DB")
@@ -321,15 +353,53 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         user["is_subscribed"] = subscribed
         return json_response({"user": user_payload(user)})
 
+    if path == "/api/planning" or path.startswith("/api/planning/"):
+        user = await resolve_session_user(env, request)
+        if not user:
+            return json_response({"error": "Unauthorized"}, 401)
+        return await handle_planning_request(env, request, user, path, method)
+
+    if path == "/api/billing" or path.startswith("/api/billing/"):
+        user = await resolve_session_user(env, request)
+        if not user:
+            return json_response({"error": "Unauthorized"}, 401)
+        return await handle_billing_request(env, request, user, path, method)
+
     if path == "/api/digest/dry-run" and method == "POST":
         user = await resolve_session_user(env, request)
         if not user:
             return json_response({"error": "Unauthorized"}, 401)
         try:
+            # A bodyless POST remains compatible with the original preview API.
+            if callable(getattr(request, "text", None)):
+                raw = str(await request.text())
+                if len(raw) > 4096:
+                    raise ValueError("invalid_preview_request")
+                payload = json.loads(raw) if raw.strip() else {}
+            else:
+                payload = await request_json(request)
+            if not isinstance(payload, dict):
+                raise ValueError("invalid_preview_request")
+            target_date = None
+            if "date" in payload:
+                if payload["date"] is None:
+                    raise ValueError("invalid_preview_date")
+                target_date = validate_preview_date(payload["date"])
+        except (ValueError, TypeError):
+            return json_response(
+                {
+                    "error": "Choose a date from tomorrow through the next seven days.",
+                    "field": "date",
+                },
+                422,
+            )
+        try:
+            extra = {"target_date": target_date} if target_date is not None else {}
             preview = await dispatch_digest(
                 env,
                 dry_run=True,
                 target_user_id=int(user["id"]),
+                **extra,
             )
         except Exception:
             return json_response({"error": "Unable to run digest preview"}, 502)

@@ -1,11 +1,13 @@
 import hashlib
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from worker_collectors import collect_events, persist_events
 from worker_email import deliver_digest, digest_message
-from worker_jev import fallback_evaluation, selected_types
+from worker_jev import fallback_evaluation, jev_mode, selected_types
+from worker_planning import cleanup_planning, delivery_allowed
 from worker_ranking import rank_events
 from worker_runtime import env_value
 from worker_storage import (
@@ -20,10 +22,13 @@ from worker_storage import (
     list_events_by_keys,
     mark_delivery_failed,
     mark_delivery_sent,
+    public_event,
+    public_text,
     record_jev_evaluation,
     record_recommendation,
+    record_source_checks,
 )
-from worker_time import to_madrid
+from worker_time import validate_preview_date
 
 
 def log_event(event_name: str, correlation_id: str, **fields: Any) -> None:
@@ -50,18 +55,64 @@ def _run_identity(digest_date: str, run_id: int) -> str:
     return hashlib.sha256(f"{digest_date}:{run_id}".encode()).hexdigest()[:16]
 
 
+def _coverage(
+    diagnostics: list[dict[str, Any]], checked_at: str, collected_count: int
+) -> dict[str, Any]:
+    sources = []
+    for diagnostic in diagnostics[:32]:
+        name = diagnostic.get("source", "source")
+        if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", name):
+            name = "source"
+        status = "ok" if diagnostic.get("status") == "ok" else "error"
+        timestamp = diagnostic.get("checked_at", checked_at)
+        try:
+            parsed = datetime.fromisoformat(timestamp)
+            if parsed.tzinfo is None:
+                raise ValueError("missing_offset")
+            timestamp = parsed.isoformat()
+        except (TypeError, ValueError):
+            timestamp = checked_at
+
+        def count(field: str) -> int:
+            value = diagnostic.get(field, 0)
+            return min(value, 1_000_000) if type(value) is int and value >= 0 else 0
+
+        sources.append(
+            {
+                "name": name,
+                "status": status,
+                "fetched_count": count("parsed") if status == "ok" else 0,
+                "event_count": count("matched") if status == "ok" else 0,
+                "checked_at": timestamp,
+            }
+        )
+    successes = sum(source["status"] == "ok" for source in sources)
+    return {
+        "state": "unavailable"
+        if not successes
+        else "complete"
+        if successes == len(sources)
+        else "partial",
+        "collected_count": collected_count,
+        "sources": sources,
+    }
+
+
 async def run_digest(
     env: Any,
     *,
     now: datetime | None = None,
     dry_run: bool = True,
     target_user_id: int | None = None,
+    target_date: str | None = None,
 ) -> dict[str, Any]:
     """Collect once, then independently rank/render/deliver for subscribers."""
     current = now or datetime.now(UTC)
     if current.tzinfo is None:
         current = current.replace(tzinfo=UTC)
-    digest_date = (to_madrid(current).date() + timedelta(days=1)).isoformat()
+    if target_date is not None and not dry_run:
+        raise ValueError("Selected dates are available for previews only.")
+    digest_date = validate_preview_date(target_date, current)
     db = env_value(env, "DB")
     if db is None:
         raise RuntimeError("missing_d1_binding")
@@ -85,10 +136,28 @@ async def run_digest(
     collected, source_diagnostics = await collector(
         env, datetime.fromisoformat(digest_date).date()
     )
-    for diagnostic in source_diagnostics:
-        log_event("digest.source.completed", correlation_id, **diagnostic)
     collected_keys = await persist_events(db, collected)
     events = await list_events_by_keys(db, collected_keys)
+    checked_at = current.astimezone(UTC).isoformat()
+    coverage = _coverage(source_diagnostics, checked_at, len(events))
+    source_diagnostics = [
+        {
+            "source": item["name"],
+            "status": "ok" if item["status"] == "ok" else "failed",
+            "parsed": item["fetched_count"],
+            "matched": item["event_count"],
+            "checked_at": item["checked_at"],
+            **(
+                {"error_code": "source_unavailable"}
+                if item["status"] == "error"
+                else {}
+            ),
+        }
+        for item in coverage["sources"]
+    ]
+    for diagnostic in source_diagnostics:
+        log_event("digest.source.completed", correlation_id, **diagnostic)
+    await record_source_checks(db, digest_date, coverage["sources"])
     if dry_run and target_user_id is not None:
         target = await get_preview_user(db, target_user_id)
         subscribers = [target] if target else []
@@ -118,11 +187,28 @@ async def run_digest(
 
     ranker = env_value(env, "RANK_EVENTS", rank_events)
     preview_evaluations: list[dict[str, Any]] = []
+    plans: dict[str, Any] = {
+        "version": "brisa-plans-v1",
+        "date": digest_date,
+        "checked_at": checked_at,
+        "delivery_enabled": str(
+            env_value(env, "DIGEST_DELIVERY_ENABLED", "false")
+        ).lower()
+        in {"1", "true", "yes"},
+        "coverage": coverage,
+        "recommendations": [],
+        "excluded_count": 0,
+    }
     event_ids = {event["event_key"]: int(event["id"]) for event in events}
     for subscriber in subscribers:
         user_id = int(subscriber["id"])
         claimed = False
         try:
+            if not (
+                dry_run and target_user_id is not None
+            ) and not await delivery_allowed(db, user_id, digest_date):
+                summary["skipped_count"] += 1
+                continue
             ranking = await ranker(env, subscriber.get("preferences_blob"), events)
             evaluations = ranking.evaluations
             for evaluation in evaluations:
@@ -142,6 +228,36 @@ async def run_digest(
                     )
                     for event in events
                 ]
+                decisions = {
+                    item["event"]["event_key"]: item["decision"] for item in evaluations
+                }
+                recommendations = []
+                for event in ranking.events[:100]:
+                    try:
+                        public = public_event(event)
+                    except ValueError:
+                        continue
+                    reason = event.get("relevance_reason", "")
+                    decision = decisions.get(event["event_key"], "unknown")
+                    recommendations.append(
+                        {
+                            **public,
+                            "position": len(recommendations) + 1,
+                            "reason": public_text(reason, 180)
+                            or "Suggested from your saved choices.",
+                            "used_fallback": bool(ranking.used_fallback),
+                            "type_decision": decision
+                            if decision in {"eligible", "irrelevant", "unknown"}
+                            else "unknown",
+                        }
+                    )
+                plans["recommendations"] = recommendations
+                if jev_mode(env) == "filter":
+                    plans["excluded_count"] = sum(
+                        item["status"] == "evaluated"
+                        and item["decision"] == "irrelevant"
+                        for item in evaluations
+                    )
             if evaluations:
                 log_event(
                     "digest.jev.completed",
@@ -251,6 +367,7 @@ async def run_digest(
                 event_last_seen_before=event_cutoff,
             ),
             **await delete_expired_auth(db),
+            **await cleanup_planning(db),
         }
     except Exception as error:
         summary["cleanup"] = {"error_code": _error_code(error)}
@@ -276,5 +393,6 @@ async def run_digest(
             "contract_version": "jev-preview-v1",
             "summary": summary,
             "evaluations": preview_evaluations,
+            "plans": plans,
         }
     return summary
