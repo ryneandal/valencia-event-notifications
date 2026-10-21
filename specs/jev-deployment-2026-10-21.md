@@ -1,10 +1,9 @@
 # Jev code release — 2026-10-21
 
 The bounded selector, Worker validation, Jev integration, and preview UI are
-deployed at [Brisa](https://valencia-event-notifications.pages.dev/). Jev runs in
-shadow mode with its encrypted API secret configured. Three live labeled
-fixtures passed; an authenticated Worker preview remains before filtering.
-Digest sending remains disabled.
+deployed at [Brisa](https://valencia-event-notifications.pages.dev/). Jev filtering
+is active with its encrypted API secret configured. Three live labeled fixtures
+and authenticated production previews passed. Digest sending remains disabled.
 
 ## Release evidence
 
@@ -67,14 +66,40 @@ Worker version `6c872217-6c39-4fe3-a83e-1d776f2a2ae7` was deployed with
 TypeSafe secret. Direct Worker and Pages-proxy health both return `{"ok": true}`.
 Shadow mode records decisions without excluding events.
 
-## Activation still required
+## Production preview repair and filtering activation
 
-1. Run a controlled authenticated preview, verify the pinned model response and
-   decision breakdown, and inspect the actual event classifications.
-2. Enable `filter` only after checking false exclusions. Preserve strict score
-   direction: values above 0.6 are irrelevant; equality stays eligible.
-3. Keep email delivery disabled until its separate intended-recipient smoke
-   succeeds and the sending domain is ready.
+The first authenticated preview reached Jev but failed while saving its audit
+row, showing “Brisa could not finish this preview. Please try again.” The Worker
+reported `D1_TYPE_ERROR` for an `undefined` value. Pyodide converts Python `None`
+to JavaScript `undefined`, while D1 requires `null` for SQL NULL. The fix binds
+`pyodide.ffi.jsnull` for nullable Jev fields and the optional delivery provider ID,
+retaining Python `None` in offline SQLite tests. See
+[Pyodide type conversions](https://github.com/pyodide/pyodide/blob/main/docs/usage/type-conversions.md)
+and [D1 supported types](https://developers.cloudflare.com/d1/worker-api/).
+
+[PR #58](https://github.com/ryneandal/valencia-event-notifications/pull/58)
+includes four regression cases that reproduced the exact failure before the fix:
+evaluated, uncertain, and fallback Jev results, and delivery without a provider
+ID. After the fix, all 251 Python tests and 103 frontend tests passed, along with
+lint, formatting, and Worker bundle checks.
+
+| Check | Result |
+| --- | --- |
+| Corrected shadow Worker | `5c211b99-753b-4fe8-bb52-42b6eabe5481`; authenticated preview completed at 12:34 UTC with zero failures and no email sent |
+| Decision inspection | Pinned `jev-1.13.0` response, per-type probabilities/confidence/contributions, and the resulting score were visible; source event evidence supported the classification |
+| Filter Worker | `d20996c6-95ed-4d61-b9c9-a861a4161301`, with `JEV_MODE=filter`, `JEV_MODEL=jev-1.13.0`, and `DIGEST_DELIVERY_ENABLED=false` |
+| Filtered authenticated preview | Completed at 12:45 UTC with one evaluated event, zero failures, and no email sent; the irrelevant candidate was removed from recommendations while its explanation remained visible |
+| D1 verification | The evaluation persisted with a null error code; the filtered run had zero recommendation rows |
+
+The browser showed “Tomorrow’s preview” and the completed classification instead
+of the failure message. These checks cover live provider compatibility and the
+complete authenticated preview path, not classification accuracy across all
+event types. Private account preferences and per-user scores are omitted here.
+
+Filtering retains the strict score direction: values above 0.6 are irrelevant;
+equality stays eligible. To stop exclusions, redeploy with `JEV_MODE=shadow`; to
+stop Jev calls, use `off`. Keep email delivery disabled until its separate
+intended-recipient smoke succeeds and the sending domain is ready.
 
 See [Cloudflare secret setup](https://developers.cloudflare.com/workers/configuration/secrets/#via-the-dashboard)
 and [the repository deployment guide](../cloudflare/README.md#worker-and-d1).

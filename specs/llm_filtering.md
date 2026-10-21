@@ -15,8 +15,8 @@ relevant; only scores strictly above the threshold may exclude an event. Shared
 schema/examples let frontend and backend agents work independently. Transport,
 scoring, cache/history, and frontend previews have passed offline integration
 checks and CI. The D1 migration and code release are complete. The TypeSafe
-secret is configured and `JEV_MODE=shadow` is active. Three live labeled fixtures
-passed; validate an authenticated Worker preview before enabling filtering.
+secret is configured and `JEV_MODE=filter` is active. Three live labeled fixtures
+and an authenticated Worker preview passed before enabling filtering.
 OpenRouter continues to rank eligible and unknown candidates using the other
 saved preferences.
 
@@ -64,5 +64,5 @@ Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily ev
 - [x] Persist ordered reasons, model ID, and fallback state to D1
   `recommendations` rows.
 - [x] Configure the production `OPENROUTER_API_KEY` Worker secret.
-- [ ] Complete an authenticated provider preview and one controlled live smoke
-  before enabling digest delivery.
+- [x] Complete an authenticated production provider preview.
+- [ ] Complete one controlled delivery smoke before enabling digest delivery.

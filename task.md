@@ -61,7 +61,8 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
       [production release evidence](specs/jev-deployment-2026-10-21.md)
     - [x] Configure encrypted `TYPESAFE_API_KEY`, verify three live labeled
       fixtures, and deploy `shadow` mode with digest delivery disabled
-    - [ ] Validate an authenticated Worker preview before enabling Jev filtering
+    - [x] Fix nullable D1 bindings, validate an authenticated Worker preview,
+      and enable Jev filtering with digest delivery disabled
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
@@ -71,7 +72,8 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
       record the [evidence and limits](specs/project-status-2026-10-21.md)
     - [x] Recheck deployed version, Cron, D1 schema, and recent successful dry runs
       with authenticated Cloudflare access on 2026-10-21
-    - [ ] Complete an authenticated provider preview and controlled delivery smoke
+    - [x] Complete an authenticated production provider preview
+    - [ ] Complete a controlled delivery smoke
     - [x] Add the Pages Function `/api/*` proxy
     - [x] Add and deploy a `scheduled()` handler with a daily Cron Trigger
     - [x] Dispatch scheduled and authenticated preview runs through a
