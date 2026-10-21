@@ -43,8 +43,8 @@ filtering was enabled. Digest delivery remains disabled.
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Cloudflare Cron digest Worker | Full safe pipeline implemented; deployed with delivery disabled pending controlled smoke |
 | Bounded event types and Jev preview/scoring | Filtering enabled with migrated D1 and encrypted secret; live fixtures and authenticated preview passed |
-| Shorter onboarding, planning shortlist, date choices, and saved plans | Implemented with offline tests; planning migrations and release pending |
-| Delivery-day controls, coverage history, and voluntary study feedback | Implemented; release pending, with global delivery still disabled |
+| Shorter onboarding, planning shortlist, date choices, and saved plans | Deployed with D1 migrations and 545 passing automated tests; interactive browser check pending |
+| Delivery-day controls, coverage history, and voluntary study feedback | Deployed; global delivery remains disabled |
 | Stripe-hosted membership and customer portal | Prepared at EUR 3/month; billing disabled, external setup and payment lifecycle checks pending |
 
 Do not infer that an in-progress capability is available merely because its

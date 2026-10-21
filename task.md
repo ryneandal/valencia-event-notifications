@@ -94,8 +94,8 @@ Last reviewed for planning and paid-membership preparation: 2026-10-22.
 
 - [ ] **Planning experience and paid membership launch**
   (See [planning contract](specs/planning-experience-contract.md) and
-  [membership launch guide](specs/membership-launch.md). Implementation is local;
-  production migration, payment verification, and activation remain pending.)
+  [membership launch guide](specs/membership-launch.md). Planning is deployed;
+  interactive account verification and paid activation remain pending.)
     - [x] Implement four-step onboarding with explicit audience choice, optional
       refinements, readable review, section editing, and saved-field preservation
     - [x] Start new accounts with email digests paused until explicit opt-in,
@@ -114,8 +114,11 @@ Last reviewed for planning and paid-membership preparation: 2026-10-22.
       sessions so canceled members can subscribe again immediately
     - [x] Add offline frontend/Worker regressions, additive migrations 0002–0004,
       synchronized fresh schema, and the Stripe launch runbook
-    - [ ] Apply the new migrations and deploy Worker before matching Pages;
-      verify account controls and public health without enabling digest delivery
+    - [x] Apply the new migrations and deploy Worker before matching Pages;
+      verify production health, authentication boundaries, and matching assets
+      without enabling digest delivery ([release evidence](specs/planning-release-2026-10-22.md))
+    - [ ] Verify the deployed account flow interactively after browser access
+      is restored; automated account/preview regressions already pass
     - [ ] Confirm the EUR 3/month offer and configure Stripe Price, portal,
       webhook endpoint, and encrypted Worker secrets
     - [ ] Complete isolated Stripe test-mode checkout, webhook/retry, and

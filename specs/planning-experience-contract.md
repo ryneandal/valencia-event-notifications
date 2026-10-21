@@ -213,6 +213,8 @@ idempotency, signed webhooks, concurrent synchronization, unrelated-product
 events, replacement subscriptions, and immediate checkout after cancellation.
 Signup regressions verify paused new accounts and retained legacy state. No test needs
 real credentials or a charge. Full Python/frontend tests, Ruff, Worker bundle,
-browser checks, additive D1 migrations, and live health checks precede release;
-the [membership launch checklist](membership-launch.md) separately tracks
+additive D1 migrations and live health checks precede release. Interactive
+browser verification remains pending because the local automation service
+cannot access browser windows; see the [release evidence](planning-release-2026-10-22.md).
+The [membership launch checklist](membership-launch.md) separately tracks
 external Stripe checks and activation.

@@ -3,8 +3,9 @@
 Prepared on 2026-10-22. The repository includes Stripe-hosted Checkout, customer
 portal access, and webhook synchronization. Billing remains closed with
 `BILLING_ENABLED=false`; no Stripe purchase, live charge, or payment lifecycle
-test has been completed as part of this implementation. Deployment and external
-verification remain separate work, tracked in [task.md](../task.md).
+test has been completed as part of this implementation. The code and schema
+are [deployed](planning-release-2026-10-22.md); external payment verification
+and activation remain pending in [task.md](../task.md).
 
 All 328 Python and 217 frontend tests pass, including 21 offline billing cases;
 Ruff checks/formatting and the Worker bundle pass. The three additive

@@ -52,8 +52,8 @@ The [Jev implementation plan](specs/jev-integration-plan.md) records the shared
 contract used by the parallel agents. See the
 [configuration and deployment guide](cloudflare/README.md).
 
-The next planning release is implemented locally and awaits migration and
-deployment. It adds four-step onboarding, readable preference review, a ranked
+The [2026-10-22 planning release](specs/planning-release-2026-10-22.md) is deployed
+on Workers and Pages. It adds four-step onboarding, readable preference review, a ranked
 shortlist with source-check status, a seven-day date chooser, saved plans,
 calendar/copy actions, and delivery-day controls. Current collection covers
 València city through the Ajuntament agenda and ElPeriodic València feed;
