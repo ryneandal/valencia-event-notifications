@@ -14,9 +14,9 @@ sum of confidence-aware contributions. Higher `irrelevance_score` means less
 relevant; only scores strictly above the threshold may exclude an event. Shared
 schema/examples let frontend and backend agents work independently. Transport,
 scoring, cache/history, and frontend previews have passed offline integration
-checks and CI. The D1 migration and code release are complete. `JEV_MODE=off`
-remains active; the production provider has not changed. Configure the TypeSafe
-secret and validate shadow results before enabling filtering.
+checks and CI. The D1 migration and code release are complete. The TypeSafe
+secret is configured and `JEV_MODE=shadow` is active. Three live labeled fixtures
+passed; validate an authenticated Worker preview before enabling filtering.
 OpenRouter continues to rank eligible and unknown candidates using the other
 saved preferences.
 

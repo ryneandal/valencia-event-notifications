@@ -59,8 +59,9 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
       record [results and limits](specs/jev-verification-2026-10-21.md)
     - [x] Apply the Jev D1 migration and deploy Worker before Pages; record
       [production release evidence](specs/jev-deployment-2026-10-21.md)
-    - [ ] Configure `TYPESAFE_API_KEY` and validate controlled shadow results
-      before enabling Jev filtering
+    - [x] Configure encrypted `TYPESAFE_API_KEY`, verify three live labeled
+      fixtures, and deploy `shadow` mode with digest delivery disabled
+    - [ ] Validate an authenticated Worker preview before enabling Jev filtering
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)

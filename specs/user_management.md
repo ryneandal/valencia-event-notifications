@@ -215,5 +215,6 @@ Provider calls fall back to deterministic ranking when unavailable.
   through parallel frontend/backend work, including paused-account previews,
   per-type decision details, retries, and stale-response handling.
 - [x] Apply the Jev D1 migration and deploy Worker then Pages on 2026-10-21.
-- [ ] Configure the TypeSafe secret and validate controlled shadow previews
-  before enabling filtering; no live Jev calls were made during this release.
+- [x] Configure the encrypted TypeSafe secret, verify three live labeled fixtures,
+  and deploy shadow mode with digest delivery disabled.
+- [ ] Validate a controlled authenticated Worker preview before enabling filtering.

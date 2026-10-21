@@ -1,8 +1,9 @@
 # Jev relevance implementation plan
 
 Status: implemented by parallel frontend and backend agents, verified locally
-and in CI, and deployed with its D1 migration on 2026-10-21. The TypeSafe secret
-and provider validation remain pending; production `JEV_MODE=off`. See the
+and in CI, and deployed with its D1 migration on 2026-10-21. The encrypted TypeSafe
+secret is configured and three live labeled fixtures passed. Production runs in
+`shadow`; an authenticated Worker preview remains before filtering. See the
 [release record](jev-deployment-2026-10-21.md). This plan follows the user's rule: **a score above the threshold means
 the event is irrelevant**. Use `irrelevance_score` in code to make that direction
 explicit. Dates and API facts were checked on 2026-10-21.
@@ -195,7 +196,8 @@ the Python SDK and its dependencies work unchanged in this runtime. Inject a
 `JEV_FETCH` fake for offline tests. The production key belongs in the Worker secret
 `TYPESAFE_API_KEY`; read it at the backend environment boundary and never return
 it or a raw provider error. `JEV_MODEL` and `JEV_MODE=off|shadow|filter` are
-configured in `wrangler.toml`, defaulting to `jev-1.13.0` and `off`. The adapter
+configured in `wrangler.toml`, currently `jev-1.13.0` and `shadow`; the runtime
+fallback mode is `off`. The adapter
 requires a pinned `jev-X.Y.Z` version and rejects response model mismatches;
 aliases cannot silently reuse cached answers. Recheck stable versions before
 rollout. [Models](https://docs.typesafe.ai/models).
