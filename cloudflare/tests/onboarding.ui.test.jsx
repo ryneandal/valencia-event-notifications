@@ -17,6 +17,18 @@ async function renderApp() {
   });
 }
 
+async function completeProfile(emailAddress = 'reader@example.com') {
+  await renderApp();
+  await act(async () => {
+    const email = container.querySelector('#email');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(email, emailAddress);
+    email.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  for (let i = 0; i < 7; i += 1) {
+    await act(async () => container.querySelector('form').requestSubmit());
+  }
+}
+
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.history.replaceState({}, '', '/');
@@ -38,6 +50,44 @@ afterEach(async () => {
 });
 
 describe('onboarding accessibility behavior', () => {
+  test('waits for email verification after the register API accepts a new profile', async () => {
+    fetch.mockImplementation(async (path) => new Response(
+      JSON.stringify(path === '/api/register'
+        ? { ok: true, message: 'Check your email to continue' }
+        : { error: 'No session' }),
+      { status: path === '/api/register' ? 202 : 401 }
+    ));
+
+    await completeProfile();
+
+    expect(container.querySelector('h2').textContent).toBe('One quick step remains.');
+    expect(container.textContent).toContain('reader@example.com');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('button')?.textContent).not.toContain('Preview');
+  });
+
+  test('offers sign-in at review when the email already has an account', async () => {
+    fetch.mockImplementation(async (path) => new Response(
+      JSON.stringify(path === '/api/register'
+        ? { error: 'User already exists' }
+        : path === '/api/login'
+          ? { ok: true, message: 'Check your email to continue' }
+          : { error: 'No session' }),
+      { status: path === '/api/register' ? 409 : path === '/api/login' ? 202 : 401 }
+    ));
+
+    await completeProfile();
+
+    const signIn = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Email me a sign-in link');
+    expect(signIn).toBeDefined();
+    await act(async () => signIn.click());
+    const loginRequest = fetch.mock.calls.find(([path]) => path === '/api/login');
+    expect(JSON.parse(loginRequest[1].body)).toEqual({ email: 'reader@example.com' });
+    expect(container.querySelector('h2').textContent).toBe('One quick step remains.');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
   test('supports bounded multi-selection, required validation, and back navigation', async () => {
     await renderApp();
     await act(async () => {

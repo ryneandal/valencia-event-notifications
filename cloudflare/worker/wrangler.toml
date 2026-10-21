@@ -31,6 +31,6 @@ MAILGUN_REGION = "us"
 EMAIL_FROM = "València Events <postmaster@sandboxe1b1d4545c414b7dbd0d502b92281b01.mailgun.org>"
 OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 # Apply D1 migrations before deployment. Enable shadow previews before filtering.
-JEV_MODE = "off"
+JEV_MODE = "shadow"
 JEV_MODEL = "jev-1.13.0"
 DIGEST_DELIVERY_ENABLED = "false"

@@ -45,9 +45,10 @@ The [2026-10-21 release](specs/jev-deployment-2026-10-21.md) deployed the 12 bou
 event types, Worker validation, Jev transport/scoring, private evaluation history,
 and frontend previews. The D1 migration is applied, public health checks pass,
 and production assets match the tested build. Authenticated checks confirmed the
-daily Cron and recent successful dry runs. Jev remains `off` pending the
-`TYPESAFE_API_KEY` secret and controlled provider validation; digest delivery is
-also disabled. The [Jev implementation plan](specs/jev-integration-plan.md) records
+daily Cron and recent successful dry runs. Jev runs in `shadow` mode with its
+encrypted TypeSafe secret configured; three live labeled fixtures passed.
+Authenticated preview validation remains before filtering. Digest delivery is
+disabled. The [Jev implementation plan](specs/jev-integration-plan.md) records
 the shared contract used by the parallel agents and the remaining activation
 steps. See the [configuration and deployment guide](cloudflare/README.md).
 

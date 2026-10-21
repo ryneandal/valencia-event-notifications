@@ -138,6 +138,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [existingAccountEmail, setExistingAccountEmail] = useState(null);
   const [validationError, setValidationError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completion, setCompletion] = useState(null);
@@ -248,6 +249,7 @@ export default function App() {
   const goNext = async () => {
     if (busy) return;
     setError('');
+    setExistingAccountEmail(null);
     const nextValidationError = validateOnboardingStep(step, form);
     if (nextValidationError) {
       setValidationError(nextValidationError);
@@ -265,9 +267,9 @@ export default function App() {
       const payload = currentUser
         ? await updateUserProfile(profile)
         : await registerUser(form.email.trim(), profile);
-      setCurrentUser(payload.user);
-      setForm(hydrateFormState(payload.user.email, payload.user.preferences_blob));
       if (currentUser) {
+        setCurrentUser(payload.user);
+        setForm(hydrateFormState(payload.user.email, payload.user.preferences_blob));
         setCompletion({ kind: 'saved', email: payload.user.email });
         setNotice('Your personalisation profile is saved.');
       } else {
@@ -276,11 +278,10 @@ export default function App() {
       }
     } catch (requestError) {
       if (requestError.status === 401) expireSession();
-      else setError(
-        requestError.status === 409
-          ? 'That email is already registered. Resume the existing setup from the first step.'
-          : requestError.message
-      );
+      else if (requestError.status === 409) {
+        setExistingAccountEmail(form.email.trim());
+        setError('This email already has an account. Send a sign-in link to continue.');
+      } else setError(requestError.message);
     } finally {
       setBusy(false);
     }
@@ -566,6 +567,9 @@ export default function App() {
 
             {notice ? <p className="status-message" role="status">{notice}</p> : null}
             {error ? <p className="error-message" role="alert">{error}</p> : null}
+            {step === STEPS.length - 1 && !currentUser && existingAccountEmail === form.email.trim() ? (
+              <button className="resume-button" disabled={busy} onClick={resume} type="button">Email me a sign-in link</button>
+            ) : null}
           </section>
 
           <div className="form-actions">
