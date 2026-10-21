@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 WORKER_PATH = (
     Path(__file__).resolve().parents[1] / "cloudflare" / "worker" / "src" / "index.py"
 )
@@ -72,6 +74,86 @@ def seed_user_and_run(connection: sqlite3.Connection) -> tuple[int, int]:
     )
     connection.commit()
     return int(user.lastrowid), int(run.lastrowid)
+
+
+@pytest.fixture
+def js_d1(monkeypatch):
+    """Model Pyodide None -> undefined and D1's rejection of undefined."""
+    js_null = object()
+    ffi = SimpleNamespace(jsnull=js_null)
+    monkeypatch.setitem(sys.modules, "pyodide", SimpleNamespace(ffi=ffi))
+    monkeypatch.setitem(sys.modules, "pyodide.ffi", ffi)
+
+    class JSStatement(SQLiteD1Statement):
+        def bind(self, *params):
+            if any(value is None for value in params):
+                raise TypeError("D1_TYPE_ERROR: Type 'undefined' not supported")
+            return super().bind(
+                *(None if value is js_null else value for value in params)
+            )
+
+    class JSD1(SQLiteD1):
+        def prepare(self, sql):
+            return JSStatement(self.connection, sql)
+
+    connection = database()
+    yield connection, JSD1(connection)
+    connection.close()
+
+
+@pytest.mark.parametrize("p_yes", [0.99, 0.5, None])
+def test_jev_audit_persists_nullable_fields_across_js_boundary(js_d1, p_yes):
+    from worker_jev import attach_event, fallback_evaluation
+    from worker_relevance import score_answers
+
+    connection, db = js_d1
+    user_id, run_id = seed_user_and_run(connection)
+    event = {"event_key": "film", "title": "Cinema", "url": "https://example.com/film"}
+    event_id = connection.execute(
+        """
+        INSERT INTO events (event_key, title, start_at, url, source)
+        VALUES ('film', 'Cinema', '2026-09-05', 'https://example.com/film', 'fixture')
+        """
+    ).lastrowid
+    evaluation = (
+        fallback_evaluation(event, ["film"], "provider_unavailable")
+        if p_yes is None
+        else attach_event(
+            event,
+            score_answers(
+                ["film"], {"event_type:film": {"type": "noul", "noul": p_yes}}
+            ),
+            "jev-1.13.0",
+        )
+    )
+
+    asyncio.run(
+        storage.record_jev_evaluation(
+            db,
+            digest_run_id=run_id,
+            user_id=user_id,
+            event_id=event_id,
+            evaluation=evaluation,
+        )
+    )
+
+    row = dict(connection.execute("SELECT * FROM jev_evaluations").fetchone())
+    for field in ("model", "irrelevance_score", "decision", "status", "error_code"):
+        assert row[field] == evaluation[field]
+    assert json.loads(row["components"]) == evaluation["components"]
+
+
+def test_delivery_without_provider_id_persists_sql_null_across_js_boundary(js_d1):
+    connection, db = js_d1
+    user_id, run_id = seed_user_and_run(connection)
+    assert asyncio.run(storage.claim_delivery(db, run_id, user_id))
+
+    assert asyncio.run(storage.mark_delivery_sent(db, run_id, user_id, None))
+
+    row = connection.execute(
+        "SELECT status, provider_message_id FROM deliveries"
+    ).fetchone()
+    assert tuple(row) == ("sent", None)
 
 
 def test_event_upsert_has_stable_identity_and_deduplicates():
