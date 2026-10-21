@@ -22,13 +22,15 @@ not a separately deployed application.
 
 See the [2026-10-21 status check](../specs/project-status-2026-10-21.md) for live
 public endpoint results and the limits of verification without authenticated
-Cloudflare access. The local selector now uses 12 fixed event types from
+Cloudflare access. The [later production release](../specs/jev-deployment-2026-10-21.md)
+includes authenticated deployment, D1, and Cron checks. The deployed selector uses 12 fixed event types from
 `shared/event-types.json`; `worker_preferences.py` enforces valid selections and
 trusted definitions on registration/profile updates. Jev classification, scoring,
-private D1 history, and the frontend decision breakdown are implemented and
-tested locally against the [shared contract](../specs/jev-integration-plan.md).
-Apply the Jev D1 migration before deploying the Worker, then deploy the matching
-Pages build. `JEV_MODE=off` and disabled digest delivery remain the defaults.
+private D1 history, and the frontend decision breakdown are deployed after local
+and CI verification against the [shared contract](../specs/jev-integration-plan.md).
+The Jev D1 migration was applied before the Worker and matching Pages release.
+`JEV_MODE=off` and disabled digest delivery remain active; the TypeSafe secret
+and controlled provider validation are still required for activation.
 
 | Capability | State |
 | --- | --- |
@@ -39,7 +41,7 @@ Pages build. `JEV_MODE=off` and disabled digest delivery remain the defaults.
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Cloudflare Cron digest Worker | Full safe pipeline implemented; deployed with delivery disabled pending controlled smoke |
-| Bounded event types and Jev preview/scoring | Implemented and verified locally; migration, deployment, and provider smoke remain pending |
+| Bounded event types and Jev preview/scoring | Deployed with migrated D1; Jev off pending its secret and provider validation |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
@@ -105,7 +107,7 @@ Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 The Worker auth code, additive D1 migration, email provider configuration, and
 deployment are live.
 
-The local Jev implementation extends `POST /api/digest/dry-run` with
+The deployed Jev implementation extends `POST /api/digest/dry-run` with
 `{contract_version: "jev-preview-v1", summary, evaluations}`. It accepts no event
 or profile data from the browser: the Worker loads the session user's saved
 profile and collected events. Active accounts can preview while delivery is
@@ -275,8 +277,8 @@ before merge.
 Apply the additive Jev migration to an existing D1 database before deploying
 this Worker, **even with `JEV_MODE=off`**, because retention and evaluation history
 reference the new tables. For a fresh database, initialize `worker/src/schema.sql`
-instead; it includes both tables. No production migration was run during local
-verification.
+instead; it includes both tables. This migration was applied to production on
+2026-10-21; local verification before the release did not alter production.
 
 ```bash
 cd cloudflare

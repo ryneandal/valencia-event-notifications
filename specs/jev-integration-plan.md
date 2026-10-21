@@ -1,8 +1,9 @@
 # Jev relevance implementation plan
 
-Status: implemented by parallel frontend and backend agents and verified locally
-on 2026-10-21. Production migration, provider validation, and rollout remain
-pending; `JEV_MODE=off` is the default. This plan follows the user's rule: **a score above the threshold means
+Status: implemented by parallel frontend and backend agents, verified locally
+and in CI, and deployed with its D1 migration on 2026-10-21. The TypeSafe secret
+and provider validation remain pending; production `JEV_MODE=off`. See the
+[release record](jev-deployment-2026-10-21.md). This plan follows the user's rule: **a score above the threshold means
 the event is irrelevant**. Use `irrelevance_score` in code to make that direction
 explicit. Dates and API facts were checked on 2026-10-21.
 

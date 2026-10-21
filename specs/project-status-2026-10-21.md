@@ -1,5 +1,10 @@
 # Project status checked on 2026-10-21
 
+This records the initial pre-deployment check. The subsequent
+[production release](jev-deployment-2026-10-21.md) applied the Jev migration,
+deployed Worker and Pages, and completed authenticated deployment/D1/Cron checks.
+TypeSafe provider activation and digest delivery remain pending.
+
 The public Cloudflare Pages frontend and Python Worker API are running. These
 checks do not prove that scheduled digests collect, rank, and deliver
 successfully. Checked-in configuration keeps digest delivery disabled.
