@@ -220,6 +220,141 @@ fieldset[aria-invalid='true'] {
   line-height: 1.55;
 }
 
+.digest-preview {
+  width: min(100%, 560px);
+  min-width: 0;
+  margin-top: 34px;
+  text-align: left;
+  color: var(--navy);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.digest-preview h3 {
+  margin: 0 0 12px;
+  font: 500 30px/1.15 Fraunces, Georgia, serif;
+}
+
+.preview-selected-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.preview-selected-types li {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 4px 10px;
+  background: var(--paper);
+  font-size: 12px;
+}
+
+.evaluation-list {
+  display: grid;
+  gap: 16px;
+}
+
+.evaluation-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+
+.evaluation-card h4 {
+  margin: 10px 0;
+  font: 600 22px/1.25 Fraunces, Georgia, serif;
+}
+
+.evaluation-card a {
+  color: var(--navy);
+  text-underline-offset: 3px;
+}
+
+.evaluation-decision {
+  display: inline-block;
+  margin: 0;
+  padding: 4px 9px;
+  border-radius: 6px;
+  color: #17635f;
+  background: #edf7f1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.evaluation-irrelevant .evaluation-decision {
+  color: #9a392d;
+  background: #fff0ec;
+}
+
+.evaluation-unknown .evaluation-decision {
+  color: #725316;
+  background: #fff5d9;
+}
+
+.evaluation-details {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.evaluation-details summary {
+  min-height: 32px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.evaluation-components {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evaluation-components li {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.evaluation-components h5 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.evaluation-components dl {
+  margin: 0;
+  font-size: 12px;
+}
+
+.evaluation-components dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 12px;
+}
+
+.evaluation-components dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.digest-preview a:focus-visible,
+.evaluation-details summary:focus-visible,
+.digest-preview button:focus-visible {
+  outline: 3px solid var(--coral);
+  outline-offset: 4px;
+}
+
+.preview-error button {
+  margin-top: 14px;
+  min-height: 44px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

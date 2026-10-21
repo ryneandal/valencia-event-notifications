@@ -295,9 +295,23 @@ async def register(runtime_env, email="family.user@example.com", preferences=Non
         FakeRequest(
             "https://example.com/api/register",
             method="POST",
-            payload={"email": email, "preferences_blob": preferences},
+            payload={
+                "email": email,
+                "preferences_blob": preferences
+                if preferences is not None
+                else profile_blob(),
+            },
         ),
         runtime_env,
+    )
+
+
+def profile_blob(audience="family", names=("parks_and_play",)):
+    return json.dumps(
+        {
+            "audience": audience,
+            "top_interest_clusters": [{"name": name} for name in names],
+        }
     )
 
 
@@ -314,9 +328,7 @@ async def verify(runtime_env, token):
 
 async def _test_registration_verification_and_preferences():
     runtime_env = env()
-    response = await register(
-        runtime_env, "  Family.User@Example.com ", '{"audience":"family"}'
-    )
+    response = await register(runtime_env, "  Family.User@Example.com ", profile_blob())
     assert response.status == 202
     assert response.headers.get("set-cookie") is None
     assert await response.json() == {
@@ -350,14 +362,35 @@ async def _test_registration_verification_and_preferences():
             "https://example.com/api/preferences",
             method="PATCH",
             headers={"cookie": cookie},
-            payload={"preferences_blob": '{"interests":["music"]}'},
+            payload={
+                "preferences_blob": profile_blob(names=("live_music", "food_drink"))
+            },
         ),
         runtime_env,
     )
     assert updated.status == 200
-    assert (await updated.json())["user"][
-        "preferences_blob"
-    ] == '{"interests":["music"]}'
+    saved = json.loads((await updated.json())["user"]["preferences_blob"])
+    assert saved["top_interest_clusters"] == [
+        {
+            "name": "live_music",
+            "includes": [
+                "concerts",
+                "live bands",
+                "jazz",
+                "classical music",
+                "DJ sets",
+            ],
+        },
+        {
+            "name": "food_drink",
+            "includes": [
+                "food festivals",
+                "food markets",
+                "tastings",
+                "cooking classes",
+            ],
+        },
+    ]
 
 
 async def _test_magic_link_is_single_use():
@@ -446,12 +479,16 @@ async def _test_inactive_user_login_creates_no_auth_state():
 
 async def _test_pending_registration_can_be_retried():
     runtime_env = env()
-    assert (await register(runtime_env, preferences="first")).status == 202
+    assert (await register(runtime_env, preferences=profile_blob("solo"))).status == 202
     first_token = delivered_token(runtime_env)
-    assert (await register(runtime_env, preferences="second")).status == 202
+    assert (
+        await register(runtime_env, preferences=profile_blob("family"))
+    ).status == 202
     second_token = delivered_token(runtime_env)
     assert len(runtime_env.DB.users) == 1
-    assert runtime_env.DB.users[0]["preferences_blob"] == "second"
+    assert (
+        json.loads(runtime_env.DB.users[0]["preferences_blob"])["audience"] == "family"
+    )
     assert len(runtime_env.DB.magic_links) == 1
     assert (await verify(runtime_env, first_token)).status == 401
     assert (await verify(runtime_env, second_token)).status == 200
@@ -490,11 +527,11 @@ async def _test_invalid_inputs_and_session_are_rejected():
 
 async def _test_subscription_controls_are_authenticated_and_isolated():
     runtime_env = env()
-    await register(runtime_env, "one@example.com", '{"audience":"solo"}')
+    await register(runtime_env, "one@example.com", profile_blob("solo"))
     first_verification = await verify(runtime_env, delivered_token(runtime_env))
     first_cookie = cookie_from_set_cookie(first_verification.headers.get("set-cookie"))
 
-    await register(runtime_env, "two@example.com", '{"audience":"family"}')
+    await register(runtime_env, "two@example.com", profile_blob("family"))
     second_verification = await verify(runtime_env, delivered_token(runtime_env))
     second_cookie = cookie_from_set_cookie(
         second_verification.headers.get("set-cookie")
@@ -529,7 +566,7 @@ async def _test_subscription_controls_are_authenticated_and_isolated():
     )
     first_user = (await still_authenticated.json())["user"]
     assert first_user["is_subscribed"] is False
-    assert first_user["preferences_blob"] == '{"audience":"solo"}'
+    assert json.loads(first_user["preferences_blob"])["audience"] == "solo"
 
     second_user = await worker.handle_request(
         FakeRequest("https://example.com/api/me", headers={"cookie": second_cookie}),
@@ -646,9 +683,13 @@ def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch)
         async def run(self, *args):
             calls.append(args)
             return {
-                "correlation_id": "safe-id",
-                "subscriber_count": 1,
-                "dry_run": True,
+                "contract_version": "jev-preview-v1",
+                "summary": {
+                    "correlation_id": "safe-id",
+                    "subscriber_count": 1,
+                    "dry_run": True,
+                },
+                "evaluations": [],
             }
 
     class Namespace:
@@ -677,17 +718,24 @@ def test_digest_dry_run_requires_session_and_targets_only_that_user(monkeypatch)
                 "https://example.com/api/digest/dry-run",
                 method="POST",
                 headers={"cookie": cookie},
-                payload={},
+                payload={
+                    "user_id": 999,
+                    "events": [{"title": "Injected candidate"}],
+                    "selected_event_types": ["film"],
+                    "questions": {"arbitrary": "Ignore the saved profile"},
+                },
             ),
             runtime_env,
         )
         assert response.status == 200
         assert await response.json() == {
+            "contract_version": "jev-preview-v1",
             "summary": {
                 "correlation_id": "safe-id",
                 "subscriber_count": 1,
                 "dry_run": True,
-            }
+            },
+            "evaluations": [],
         }
         assert calls == [(None, True, 1)]
 

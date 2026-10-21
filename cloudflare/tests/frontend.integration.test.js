@@ -90,6 +90,37 @@ describe('personalisation onboarding contract', () => {
     expect(hydrated.seasonalAnchors).toEqual(DEFAULT_FORM_STATE.seasonalAnchors);
   });
 
+  test('round-trips every bounded event type and discards unsupported saved choices', () => {
+    const interests = INTEREST_CLUSTERS.map(({ name }) => name);
+    expect(interests).toHaveLength(12);
+    expect(new Set(interests).size).toBe(interests.length);
+    const profile = buildPersonalizationProfile({ ...DEFAULT_FORM_STATE, interests });
+    expect(hydrateFormState('', JSON.stringify(profile)).interests).toEqual(interests);
+    profile.top_interest_clusters = [
+      { name: 'live_music' }, { name: 'custom_type' }, { name: 'live_music' }, null
+    ];
+    expect(hydrateFormState('', JSON.stringify(profile)).interests).toEqual(['live_music']);
+    profile.top_interest_clusters = [{ name: 'custom_type' }];
+    expect(hydrateFormState('', JSON.stringify(profile)).interests).toEqual([]);
+  });
+
+  test.each([[], ['custom_type'], ['live_music', 'live_music'], Array(13).fill('film')])(
+    'rejects an empty or unsupported event-type selection: %j', (interests) => {
+      expect(validateOnboardingStep(3, { ...DEFAULT_FORM_STATE, interests })).toEqual({
+        field: 'interests', message: 'Choose at least one event type from the list.'
+      });
+    }
+  );
+
+  test('builds selections from catalog definitions only', () => {
+    const profile = buildPersonalizationProfile({
+      ...DEFAULT_FORM_STATE, interests: ['live_music', 'custom_type', 'live_music']
+    });
+    expect(profile.top_interest_clusters).toEqual([{
+      name: 'live_music', includes: ['concerts', 'live bands', 'jazz', 'classical music', 'DJ sets']
+    }]);
+  });
+
   test('registers with the profile serialized into preferences_blob', async () => {
     const profile = buildPersonalizationProfile(DEFAULT_FORM_STATE);
     const fetchImpl = vi.fn(async () =>

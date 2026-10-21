@@ -1,0 +1,102 @@
+{
+  "version": "event-type-questions-v1",
+  "taxonomy_version": "event-types-v1",
+  "questions": {
+    "event_type:local_festivals_spectacle": {
+      "type": "noul",
+      "instructions": "Is a local festival or public spectacle a primary activity of this event?",
+      "criteria": {
+        "true": "A parade, fireworks display, festive street monument, procession, or flower battle is a primary advertised activity.",
+        "false": "Local festivals and public spectacles are absent or only incidental context."
+      }
+    },
+    "event_type:hands_on_learning": {
+      "type": "noul",
+      "instructions": "Is hands-on learning or an interactive educational experience a primary activity of this event?",
+      "criteria": {
+        "true": "A science museum activity, interactive exhibit, children's workshop, aquarium show, planetarium show, or educational large-format film is a primary advertised activity.",
+        "false": "Hands-on or interactive educational experiences are absent or only incidental."
+      }
+    },
+    "event_type:animals_and_nature": {
+      "type": "noul",
+      "instructions": "Is experiencing animals or nature a primary activity of this event?",
+      "criteria": {
+        "true": "An animal park visit, keeper talk, nature boat trip, wetland visit, birdwatching, or sunset nature outing is a primary advertised activity.",
+        "false": "Animals and nature are absent or merely the setting for an unrelated activity."
+      }
+    },
+    "event_type:parks_and_play": {
+      "type": "noul",
+      "instructions": "Is outdoor play or recreation in a park a primary activity of this event?",
+      "criteria": {
+        "true": "A destination playground visit, park recreation event, picnic, or bike-friendly leisure outing is a primary advertised activity.",
+        "false": "Park recreation and outdoor play are absent or merely the setting for an unrelated activity."
+      }
+    },
+    "event_type:kid-friendly_culture": {
+      "type": "noul",
+      "instructions": "Is an accessible cultural activity for families with children a primary activity of this event?",
+      "criteria": {
+        "true": "A craft market, family theatre or puppetry, child-accessible street performance, or museum family day is a primary advertised activity.",
+        "false": "Family-accessible cultural activities are absent, adult-only, or merely incidental."
+      }
+    },
+    "event_type:live_music": {
+      "type": "noul",
+      "instructions": "Is a live musical performance or DJ set a primary activity of this event?",
+      "criteria": {
+        "true": "A concert, live band, jazz or classical performance, recital, or DJ set is a primary advertised activity.",
+        "false": "Live music and DJ sets are absent or only incidental background entertainment."
+      }
+    },
+    "event_type:performing_arts": {
+      "type": "noul",
+      "instructions": "Is a performing arts show a primary activity of this event?",
+      "criteria": {
+        "true": "Theatre, dance performance, opera, comedy, or circus is a primary advertised activity.",
+        "false": "Performing arts shows are absent or only incidental entertainment."
+      }
+    },
+    "event_type:art_exhibitions": {
+      "type": "noul",
+      "instructions": "Is an art, photography, design, or museum exhibition a primary activity of this event?",
+      "criteria": {
+        "true": "An exhibition or gallery opening presenting art, photography, design, or museum collections is a primary advertised activity.",
+        "false": "Exhibitions are absent or merely incidental decoration or context."
+      }
+    },
+    "event_type:film": {
+      "type": "noul",
+      "instructions": "Is a film screening or film festival a primary activity of this event?",
+      "criteria": {
+        "true": "A cinema screening, open-air cinema, film festival, or documentary screening is a primary advertised activity.",
+        "false": "Film screenings are absent or only incidental background video."
+      }
+    },
+    "event_type:food_drink": {
+      "type": "noul",
+      "instructions": "Is a food or drink experience a primary activity of this event?",
+      "criteria": {
+        "true": "A food festival, food market, tasting, or cooking class is a primary advertised activity.",
+        "false": "Food and drink are absent or only incidental refreshments."
+      }
+    },
+    "event_type:sports_active": {
+      "type": "noul",
+      "instructions": "Is sport or an active physical outing a primary activity of this event?",
+      "criteria": {
+        "true": "A sports match, running or cycling event, group fitness session, or guided hike is a primary advertised activity.",
+        "false": "Sport and active physical outings are absent or only incidental movement."
+      }
+    },
+    "event_type:tours_heritage": {
+      "type": "noul",
+      "instructions": "Is a guided tour or heritage experience a primary activity of this event?",
+      "criteria": {
+        "true": "A guided city walk, heritage tour, historic-site visit, or architecture tour is a primary advertised activity.",
+        "false": "Tours and heritage experiences are absent or merely the setting for an unrelated activity."
+      }
+    }
+  }
+}

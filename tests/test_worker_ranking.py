@@ -206,3 +206,130 @@ def test_missing_key_provider_failure_and_invalid_profile_fail_safe():
         result.used_fallback
         for result in (missing_key, provider_failure, invalid_profile)
     )
+
+
+def supported_profile() -> str:
+    profile = json.loads(profile_blob())
+    profile["top_interest_clusters"] = [
+        {"name": "live_music", "includes": ["concerts"]}
+    ]
+    return json.dumps(profile)
+
+
+def test_jev_filter_preserves_other_preferences_and_cannot_resurrect_rejected_events():
+    captured = []
+
+    async def jev(body):
+        is_music = "concert" in body["state"]["event"]["title"].lower()
+        return {
+            "model": body["model"],
+            "answers": {
+                "event_type:live_music": {
+                    "type": "noul",
+                    "noul": 0.9 if is_music else 0.05,
+                }
+            },
+        }
+
+    async def invalid_ranking(body):
+        captured.append(json.loads(body["messages"][1]["content"]))
+        # Even a provider response naming a previously rejected event is invalid.
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"recommendations":[{"event_key":"event-first",'
+                            '"reason":"Bring it back"}]}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    result = asyncio.run(
+        ranking.rank_events(
+            SimpleNamespace(
+                JEV_MODE="filter", JEV_FETCH=jev, OPENROUTER_FETCH=invalid_ranking
+            ),
+            supported_profile(),
+            events(),
+        )
+    )
+    assert result.used_fallback is True
+    assert [e["event_key"] for e in result.events] == ["event-later"]
+    assert len(result.evaluations) == 2
+    assert result.evaluations[1]["decision"] == "irrelevant"
+    assert all(len(body["events"]) == 1 for body in captured)
+    assert captured[0]["profile"] == json.loads(supported_profile())
+
+
+def test_all_rejected_is_a_successful_empty_ranking_without_openrouter_call():
+    async def jev(body):
+        return {
+            "model": body["model"],
+            "answers": {"event_type:live_music": {"type": "noul", "noul": 0.05}},
+        }
+
+    async def forbidden(_body):
+        raise AssertionError("Empty candidate list must not reach OpenRouter")
+
+    result = asyncio.run(
+        ranking.rank_events(
+            SimpleNamespace(
+                JEV_MODE="filter", JEV_FETCH=jev, OPENROUTER_FETCH=forbidden
+            ),
+            supported_profile(),
+            events(),
+        )
+    )
+    assert result.events == []
+    assert result.used_fallback is False
+    assert len(result.evaluations) == 2
+
+
+def test_shadow_and_uncertainty_keep_existing_candidate_fallback():
+    for mode, probability in (("shadow", 0.0), ("filter", 0.5)):
+
+        async def jev(body, probability=probability):
+            return {
+                "model": body["model"],
+                "answers": {
+                    "event_type:live_music": {"type": "noul", "noul": probability}
+                },
+            }
+
+        result = asyncio.run(
+            ranking.rank_events(
+                SimpleNamespace(JEV_MODE=mode, JEV_FETCH=jev),
+                supported_profile(),
+                events(),
+            )
+        )
+        assert result.used_fallback is True  # OpenRouter key is deliberately absent.
+        assert len(result.events) == 2
+        assert len(result.evaluations) == 2
+
+
+def test_off_makes_no_jev_calls_and_invalid_preferences_cannot_filter():
+    async def forbidden(_body):
+        raise AssertionError("Must not call Jev")
+
+    result = asyncio.run(
+        ranking.rank_events(
+            SimpleNamespace(JEV_MODE="off", JEV_FETCH=forbidden),
+            supported_profile(),
+            events(),
+        )
+    )
+    assert len(result.events) == 2
+    assert result.evaluations == []
+    result = asyncio.run(
+        ranking.rank_events(
+            SimpleNamespace(JEV_MODE="filter", JEV_FETCH=forbidden),
+            profile_blob(),
+            events(),  # The legacy 'arts' ID is unsupported.
+        )
+    )
+    assert len(result.events) == 2
+    assert all(e["error_code"] == "invalid_preferences" for e in result.evaluations)

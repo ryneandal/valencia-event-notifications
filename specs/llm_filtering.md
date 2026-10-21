@@ -1,11 +1,23 @@
 # Feature Specification: LLM Filtering
 
-## Status (2026-09-04)
+## Status (2026-10-21)
 The production Cloudflare Worker directly calls OpenRouter and defaults to
 `nvidia/nemotron-3-ultra-550b-a55b:free`. It schema-validates the response,
 falls back deterministically, and stores ordered recommendations and reasons in
 D1. The local reference pipeline still supports Gemini, Mistral, and OpenRouter
 through LangChain in `src/valencia_events/personalization.py`.
+
+The locally implemented Jev integration is described in the
+[Jev implementation plan](jev-integration-plan.md), researched on 2026-10-21.
+It uses one Boolean Noul question per selected catalog type and a deterministic
+sum of confidence-aware contributions. Higher `irrelevance_score` means less
+relevant; only scores strictly above the threshold may exclude an event. Shared
+schema/examples let frontend and backend agents work independently. Transport,
+scoring, cache/history, and frontend previews have passed offline integration
+checks. `JEV_MODE=off` remains the default; the production provider has not changed.
+Apply the D1 migration and validate shadow results before enabling filtering.
+OpenRouter continues to rank eligible and unknown candidates using the other
+saved preferences.
 
 ## Overview
 Use an LLM (Gemini, Mistral, or an OpenRouter model) to filter and rank daily events based on a user's natural language preferences.

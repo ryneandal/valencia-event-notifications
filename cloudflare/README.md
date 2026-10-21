@@ -20,6 +20,16 @@ not a separately deployed application.
 
 ## Current versus upcoming behavior
 
+See the [2026-10-21 status check](../specs/project-status-2026-10-21.md) for live
+public endpoint results and the limits of verification without authenticated
+Cloudflare access. The local selector now uses 12 fixed event types from
+`shared/event-types.json`; `worker_preferences.py` enforces valid selections and
+trusted definitions on registration/profile updates. Jev classification, scoring,
+private D1 history, and the frontend decision breakdown are implemented and
+tested locally against the [shared contract](../specs/jev-integration-plan.md).
+Apply the Jev D1 migration before deploying the Worker, then deploy the matching
+Pages build. `JEV_MODE=off` and disabled digest delivery remain the defaults.
+
 | Capability | State |
 | --- | --- |
 | Git-connected Cloudflare Pages project | Deployed; `main` is production and other branches can receive previews |
@@ -29,6 +39,7 @@ not a separately deployed application.
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Cloudflare Cron digest Worker | Full safe pipeline implemented; deployed with delivery disabled pending controlled smoke |
+| Bounded event types and Jev preview/scoring | Implemented and verified locally; migration, deployment, and provider smoke remain pending |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
@@ -94,6 +105,14 @@ Authenticated routes use an `HttpOnly` session cookie. The deployed contract is:
 The Worker auth code, additive D1 migration, email provider configuration, and
 deployment are live.
 
+The local Jev implementation extends `POST /api/digest/dry-run` with
+`{contract_version: "jev-preview-v1", summary, evaluations}`. It accepts no event
+or profile data from the browser: the Worker loads the session user's saved
+profile and collected events. Active accounts can preview while delivery is
+paused. Evaluations include rejected events and their per-type contributions;
+scheduled responses expose aggregate counts only. The UI rejects failed runs,
+offers retry, and discards stale previews after profile edits or sign-out.
+
 ## Configuration
 
 ### Worker runtime
@@ -116,6 +135,16 @@ deployment are live.
 - `OPENROUTER_MODEL`: optional model override; defaults to
   `nvidia/nemotron-3-ultra-550b-a55b:free`.
 - `OPENROUTER_API_KEY`: OpenRouter credential, configured only as a Worker secret.
+- `TYPESAFE_API_KEY`: Jev credential, configured only as a Worker secret with
+  `wrangler secret put TYPESAFE_API_KEY --config worker/wrangler.toml` from this
+  directory. Never place it in Pages variables or browser code.
+- `JEV_MODEL`: pinned stable Jev version; defaults to `jev-1.13.0`. Aliases are
+  rejected, and the response model must match the requested version.
+- `JEV_MODE`: `off` skips Jev calls; `shadow` evaluates and stores decisions
+  without excluding events; `filter` excludes evaluated scores strictly above
+  `0.6`. Uncertain or unavailable decisions keep the usual ranking path. The
+  checked-in default is `off`. OpenRouter still ranks the remaining candidates
+  using the other saved preferences.
 - `DIGEST_DELIVERY_ENABLED`: fail-closed production switch. Its checked-in value
   is `false`; set it to `true` only after the controlled end-to-end smoke.
 
@@ -243,12 +272,16 @@ before merge.
 
 ### Worker and D1
 
-Apply additive schema changes before deploying Worker code that requires them:
+Apply the additive Jev migration to an existing D1 database before deploying
+this Worker, **even with `JEV_MODE=off`**, because retention and evaluation history
+reference the new tables. For a fresh database, initialize `worker/src/schema.sql`
+instead; it includes both tables. No production migration was run during local
+verification.
 
 ```bash
 cd cloudflare
 npx wrangler d1 execute valencia-events --remote \
-  --file=worker/src/schema.sql --config=worker/wrangler.toml
+  --file=worker/migrations/0001_jev_evaluations.sql --config=worker/wrangler.toml
 npx wrangler deploy --config=worker/wrangler.toml
 ```
 
@@ -263,6 +296,13 @@ first structured `digest.schedule.triggered` log event after deployment. Leave
 `DIGEST_DELIVERY_ENABLED=false` until a controlled authenticated preview and one
 intended-recipient send have passed. The preview button in the signed-in account
 screen exercises the safe path.
+
+Keep `JEV_MODE=off` for the first deployment. After configuring the TypeSafe
+secret, use `shadow` for controlled previews and compare decisions with labeled
+local events. Only then enable `filter`; delivery remains a separate switch.
+Per-type cached answers contain public event evidence only. Private evaluations
+retain selected types, probabilities, contributions, model/version provenance,
+and decisions under the existing 90-day digest retention policy.
 
 The magic-link implementation is already deployed with `APP_BASE_URL`,
 `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `EMAIL_FROM`, and the encrypted

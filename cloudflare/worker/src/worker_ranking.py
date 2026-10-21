@@ -1,7 +1,9 @@
 import json
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from worker_jev import evaluate_events, jev_mode, selected_types
 from worker_runtime import env_value, to_python
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -33,6 +35,8 @@ class Ranking:
     model_id: str
     used_fallback: bool
     error_code: str | None = None
+    evaluations: list[dict[str, Any]] = field(default_factory=list)
+    evaluation_duration_ms: int = 0
 
 
 def load_profile(preferences_blob: str | None) -> dict[str, Any]:
@@ -212,7 +216,7 @@ def _error_code(error: Exception) -> str:
     return value[:64] if value else error.__class__.__name__.lower()[:64]
 
 
-async def rank_events(
+async def _rank_openrouter(
     env: Any,
     preferences_blob: str | None,
     events: list[dict[str, Any]],
@@ -249,3 +253,36 @@ async def rank_events(
         True,
         _error_code(last_error or RuntimeError("provider_failure")),
     )
+
+
+async def rank_events(
+    env: Any,
+    preferences_blob: str | None,
+    events: list[dict[str, Any]],
+) -> Ranking:
+    """Apply the optional type filter, then preserve all other profile ranking."""
+    mode = jev_mode(env)
+    if mode == "off":
+        return await _rank_openrouter(env, preferences_blob, events)
+    started = time.monotonic()
+    evaluations = await evaluate_events(env, events, selected_types(preferences_blob))
+    duration = round((time.monotonic() - started) * 1000)
+    candidates = events
+    if mode == "filter":
+        rejected = {
+            item["event"]["event_key"]
+            for item in evaluations
+            if item["status"] == "evaluated" and item["decision"] == "irrelevant"
+        }
+        candidates = [event for event in events if event["event_key"] not in rejected]
+        if events and not candidates:
+            # A legitimate empty ranking must not resurrect confidently rejected items.
+            return Ranking(
+                [],
+                "jev-type-filter",
+                False,
+                evaluations=evaluations,
+                evaluation_duration_ms=duration,
+            )
+    ranking = await _rank_openrouter(env, preferences_blob, candidates)
+    return replace(ranking, evaluations=evaluations, evaluation_duration_ms=duration)

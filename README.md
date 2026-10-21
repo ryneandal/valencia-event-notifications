@@ -41,6 +41,18 @@ The project core is implemented and running:
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
+The [2026-10-21 status check](specs/project-status-2026-10-21.md) confirms that
+the public Pages site and direct Worker API respond. Scheduled delivery remains
+disabled in checked-in configuration; current Cron/D1/provider state still needs
+an authenticated Cloudflare check. The local onboarding update offers 12 bounded
+event types and validates selections in the Worker. The Jev transport, additive
+irrelevance scoring, private evaluation history, and frontend previews are now
+implemented and tested locally. The [Jev implementation plan](specs/jev-integration-plan.md)
+records the shared contract used by the parallel agents and the remaining rollout
+steps. Jev defaults to `off`; apply its D1 migration before deploying this Worker,
+then validate `shadow` results before enabling filtering. See the
+[configuration and deployment guide](cloudflare/README.md).
+
 ## Architecture
 
 ```text
