@@ -146,8 +146,9 @@ offers retry, and discards stale previews after profile edits or sign-out.
 - `JEV_MODE`: `off` skips Jev calls; `shadow` evaluates and stores decisions
   without excluding events; `filter` excludes evaluated scores strictly above
   `0.6`. Uncertain or unavailable decisions keep the usual ranking path. The
-  checked-in default is `off`. OpenRouter still ranks the remaining candidates
-  using the other saved preferences.
+  checked-in Wrangler configuration selects `filter`. A missing or invalid
+  runtime value falls back to `off`. OpenRouter still ranks the remaining
+  candidates using the other saved preferences.
 - `DIGEST_DELIVERY_ENABLED`: fail-closed production switch. Its checked-in value
   is `false`; set it to `true` only after the controlled end-to-end smoke.
 

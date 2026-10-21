@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "cloudflare/worker/
 
 from worker_preferences import (  # noqa: E402
     EVENT_TYPE_INCLUDES,
+    MAX_PREFERENCES_BYTES,
     normalize_preferences_blob,
 )
 
@@ -49,6 +50,25 @@ def test_all_supported_types_round_trip_with_trusted_definitions():
         saved["top_interest_clusters"][0]["includes"]
         == EVENT_TYPE_INCLUDES["local_festivals_spectacle"]
     )
+
+
+def profile_at_byte_limit(*, canonical: bool) -> str:
+    blob = profile_blob(names=tuple(EVENT_TYPE_INCLUDES))
+    if canonical:
+        blob = normalize_preferences_blob(blob)
+    profile = json.loads(blob)
+    profile["notes"] = ""
+    empty = json.dumps(profile, ensure_ascii=False, separators=(",", ":"))
+    remaining = MAX_PREFERENCES_BYTES - len(empty.encode("utf-8"))
+    profile["notes"] = "é" * (remaining // 2) + "x" * (remaining % 2)
+    result = json.dumps(profile, ensure_ascii=False, separators=(",", ":"))
+    assert len(result.encode("utf-8")) == MAX_PREFERENCES_BYTES
+    return result
+
+
+def test_canonical_preferences_at_byte_limit_round_trip():
+    blob = profile_at_byte_limit(canonical=True)
+    assert normalize_preferences_blob(blob) == blob
 
 
 @pytest.mark.parametrize("payload", [None, [], "invalid"])
@@ -102,6 +122,19 @@ def test_non_object_payload_is_rejected_without_changes(payload, route):
         json.dumps({"top_interest_clusters": [{"name": []}]}),
         json.dumps({"top_interest_clusters": "live_music"}),
         " " * 16_385,
+        pytest.param(
+            profile_at_byte_limit(canonical=False),
+            id="canonicalized-profile-over-limit",
+        ),
+        *[
+            pytest.param(
+                json.dumps(json.loads(profile_blob()) | {"audience": "NUMBER"}).replace(
+                    '"NUMBER"', number
+                ),
+                id=f"non-finite-number-{number}",
+            )
+            for number in ("NaN", "Infinity", "-Infinity", "1e400")
+        ],
     ],
 )
 @pytest.mark.parametrize("route", ["/api/register", "/api/preferences"])
