@@ -1,8 +1,10 @@
 # Jev implementation verification — 2026-10-21
 
 Both parallel implementations are integrated and pass local verification. Jev
-remains off in checked-in configuration. Nothing was deployed, no production D1
-migration was applied, and no live provider calls or email sends were made.
+remains off in checked-in configuration. During this offline verification,
+nothing was deployed, no production D1 migration was applied, and no live
+provider calls or email sends were made. A subsequent user-authorized release
+is recorded in [the deployment report](jev-deployment-2026-10-21.md).
 
 ## Automated checks
 

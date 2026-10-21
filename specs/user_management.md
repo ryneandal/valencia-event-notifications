@@ -214,5 +214,6 @@ Provider calls fall back to deterministic ranking when unavailable.
 - [x] Implement and verify the [Jev preview contract](jev-integration-plan.md)
   through parallel frontend/backend work, including paused-account previews,
   per-type decision details, retries, and stale-response handling.
-- [ ] Apply the Jev D1 migration, deploy Worker then Pages, and validate controlled
-  shadow previews before enabling filtering; no live Jev calls were made locally.
+- [x] Apply the Jev D1 migration and deploy Worker then Pages on 2026-10-21.
+- [ ] Configure the TypeSafe secret and validate controlled shadow previews
+  before enabling filtering; no live Jev calls were made during this release.

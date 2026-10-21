@@ -36,7 +36,7 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
     - [x] Add pause/resume subscription controls
     - [x] Implement 12 bounded event-type choices, preserve saved IDs, and validate
       registration/profile writes against the catalog; tested locally
-    - [ ] Deploy the bounded selector and Worker validation
+    - [x] Deploy the bounded selector and Worker validation on 2026-10-21
     - [x] Remove the legacy FastAPI onboarding path and D1 HTTP subscriber bridge;
       retained SQLite tools are local-only
 
@@ -57,8 +57,10 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
       persistence; verify offline scoring, retries, identity isolation, and UI
     - [x] Complete integration review and browser verification with fake providers;
       record [results and limits](specs/jev-verification-2026-10-21.md)
-    - [ ] Apply the Jev D1 migration and deploy Worker before Pages; validate
-      shadow results before enabling Jev filtering
+    - [x] Apply the Jev D1 migration and deploy Worker before Pages; record
+      [production release evidence](specs/jev-deployment-2026-10-21.md)
+    - [ ] Configure `TYPESAFE_API_KEY` and validate controlled shadow results
+      before enabling Jev filtering
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
@@ -66,8 +68,9 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
     - [x] Configure the deployed D1 binding in `wrangler.toml`
     - [x] Recheck public Pages/proxy/direct Worker availability on 2026-10-21;
       record the [evidence and limits](specs/project-status-2026-10-21.md)
-    - [ ] Recheck current deployed version, Cron/D1/provider state with authenticated
-      Cloudflare access; complete the controlled delivery smoke
+    - [x] Recheck deployed version, Cron, D1 schema, and recent successful dry runs
+      with authenticated Cloudflare access on 2026-10-21
+    - [ ] Complete an authenticated provider preview and controlled delivery smoke
     - [x] Add the Pages Function `/api/*` proxy
     - [x] Add and deploy a `scheduled()` handler with a daily Cron Trigger
     - [x] Dispatch scheduled and authenticated preview runs through a
