@@ -1,10 +1,11 @@
 export class ApiError extends Error {
-  constructor(message, { status = 0, kind = 'service', retryable = false, cause } = {}) {
+  constructor(message, { status = 0, kind = 'service', retryable = false, cause, field } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.kind = kind;
     this.retryable = retryable;
+    if (field) this.field = field;
     if (cause) this.cause = cause;
   }
 }
@@ -39,7 +40,8 @@ export async function apiFetch(path, options = {}, fetchImpl = fetch) {
     if ([400, 422].includes(response.status)) {
       throw new ApiError(payload?.error || 'Check the highlighted information and try again.', {
         status: response.status,
-        kind: 'invalid_input'
+        kind: 'invalid_input',
+        field: payload?.field
       });
     }
     if (response.status === 429 || response.status >= 500) {
@@ -111,8 +113,12 @@ export function updateSubscription(subscribed, fetchImpl = fetch) {
   );
 }
 
-export function runDigestPreview(fetchImpl = fetch, { signal } = {}) {
-  return apiFetch('/api/digest/dry-run', { method: 'POST', ...(signal ? { signal } : {}) }, fetchImpl);
+export function runDigestPreview(fetchImpl = fetch, { signal, date } = {}) {
+  return apiFetch('/api/digest/dry-run', {
+    method: 'POST',
+    ...(signal ? { signal } : {}),
+    ...(date ? { body: JSON.stringify({ date }) } : {})
+  }, fetchImpl);
 }
 
 export function logoutUser(fetchImpl = fetch) {

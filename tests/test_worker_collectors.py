@@ -6,6 +6,8 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 WORKER_DIR = Path(__file__).resolve().parents[1] / "cloudflare" / "worker" / "src"
 sys.path.insert(0, str(WORKER_DIR))
 
@@ -57,6 +59,8 @@ def test_parses_rss_and_atom_into_valencia_aware_events():
         {
             "title": "Concierto en Plaza del Ayuntamiento",
             "start_at": "2025-10-13T20:00:00+02:00",
+            "time_precision": "unverified",
+            "location": "",
             "url": "https://www.valencia.es/eventos/concierto-plaza",
             "description": "Concierto gratuito al aire libre.",
         }
@@ -76,6 +80,8 @@ def test_parses_ajuntament_embedded_events_without_scrapy():
         "title": "Teatro familiar en el centro",
         "start_at": "2026-02-22T12:00:00+01:00",
         "end_at": "",
+        "time_precision": "date",
+        "location": "",
         "url": "https://www.valencia.es/cas/agenda-de-la-ciudad/-/content/teatro-familiar-centro",
         "description": "TEATRO. Función familiar",
     }
@@ -120,7 +126,7 @@ def test_active_ranges_include_short_runs_and_final_days_without_generic_noise()
         "Short festival",
         "Exhibition closing tomorrow",
     ]
-    assert all("end_at" not in event for event in selected)
+    assert all(event["end_at"] == "2026-09-05T12:00:00+02:00" for event in selected)
     assert all("through 2026-09-05" in event["description"] for event in selected)
 
 
@@ -156,7 +162,10 @@ def test_collection_is_bounded_filtered_and_failure_isolated():
     )
 
     assert [event["source"] for event in events] == ["good"]
-    assert diagnostics == [
+    assert [
+        {key: value for key, value in item.items() if key != "checked_at"}
+        for item in diagnostics
+    ] == [
         {"source": "good", "status": "ok", "parsed": 1, "matched": 1},
         {"source": "broken", "status": "failed", "error_code": "http_503"},
         {"source": "other", "status": "ok", "parsed": 1, "matched": 0},
@@ -164,6 +173,7 @@ def test_collection_is_bounded_filtered_and_failure_isolated():
     assert len(calls) == 3
     assert all(call[1] == collectors.USER_AGENT for call in calls)
     assert all(call[2] == 10_000 for call in calls)
+    assert all(item["checked_at"].endswith("+00:00") for item in diagnostics)
 
 
 def test_persist_events_deduplicates_in_d1():
@@ -183,3 +193,77 @@ def test_persist_events_deduplicates_in_d1():
     stored_key = connection.execute("SELECT event_key FROM events").fetchone()[0]
     assert keys == [stored_key]
     assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+
+
+def test_time_precision_requires_explicit_event_time_and_preserves_location():
+    import json
+
+    data = [
+        {"content": "Date only", "url": "date", "startDateSort": "2026-10-25"},
+        {
+            "content": "Timed",
+            "url": "time",
+            "startDateSort": "2026-10-25T19:30:00+01:00",
+            "endDate": "2026-10-25T21:00:00+01:00",
+            "location": "Centre del Carme",
+        },
+        {
+            "content": "Sortable timestamp",
+            "url": "sort",
+            "startDateSort": "1792951200000",
+        },
+    ]
+    events = collectors.parse_ajuntament_agenda(
+        "var eventosInicio = " + json.dumps(data) + ";", "https://example.com/agenda"
+    )
+    assert [event["time_precision"] for event in events] == ["date", "datetime", "date"]
+    assert events[0]["start_at"].endswith("T12:00:00+01:00")
+    assert events[1]["end_at"] == "2026-10-25T21:00:00+01:00"
+    assert events[1]["location"] == "Centre del Carme"
+    assert events[2]["location"] == ""
+
+
+def test_rss_publication_times_stay_unverified_and_unsafe_links_are_dropped():
+    rss = """<rss><channel>
+    <item><title>Public listing</title><link>/listing</link>
+    <pubDate>2026-10-22</pubDate></item>
+    <item><title>Unsafe</title><link>javascript:alert(1)</link><pubDate>2026-10-22</pubDate></item>
+    <item><title>Missing</title><pubDate>2026-10-22</pubDate></item>
+    </channel></rss>"""
+    events = collectors.parse_rss(rss, "https://example.com/feed")
+    assert len(events) == 1
+    assert events[0]["url"] == "https://example.com/listing"
+    assert events[0]["time_precision"] == "unverified"
+
+
+def test_date_match_uses_madrid_even_at_utc_midnight_boundary():
+    event = {"start_at": "2026-10-24T22:30:00+00:00"}
+    assert collectors.event_matches_date(event, date(2026, 10, 25))
+    assert not collectors.event_matches_date(event, date(2026, 10, 24))
+
+
+def test_source_failures_do_not_expose_arbitrary_error_text():
+    async def failed(*_args):
+        raise RuntimeError("private_account_token_123")
+
+    events, diagnostics = asyncio.run(
+        collectors.collect_events(
+            SimpleNamespace(EVENT_FETCH=failed),
+            date(2026, 10, 22),
+            (
+                collectors.Source(
+                    "fixture", "https://example.com/feed", collectors.parse_rss
+                ),
+            ),
+        )
+    )
+    assert events == []
+    assert diagnostics[0]["error_code"] == "source_unavailable"
+
+
+def test_successful_http_error_page_is_not_a_successful_empty_feed():
+    with pytest.raises(ValueError, match="invalid_feed"):
+        collectors.parse_rss(
+            "<html><body>Temporarily unavailable</body></html>",
+            "https://example.com/feed",
+        )

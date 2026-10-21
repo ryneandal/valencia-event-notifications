@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
 
 
@@ -41,3 +42,21 @@ def to_madrid(value: datetime) -> datetime:
 def madrid_noon(value: date) -> datetime:
     """Create an unambiguous local noon for a València calendar date."""
     return localize_madrid(datetime.combine(value, time(hour=12)))
+
+
+def available_preview_dates(now: datetime | None = None) -> list[str]:
+    """The seven upcoming local dates, independent of the caller's timezone."""
+    today = to_madrid(now or datetime.now(UTC)).date()
+    return [(today + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
+
+
+def validate_preview_date(value: object, now: datetime | None = None) -> str:
+    """Keep preview collection within tomorrow through the next seven days."""
+    dates = available_preview_dates(now)
+    if value is None:
+        return dates[0]
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise ValueError("Choose a date from tomorrow through the next seven days.")
+    if value not in dates:
+        raise ValueError("Choose a date from tomorrow through the next seven days.")
+    return value

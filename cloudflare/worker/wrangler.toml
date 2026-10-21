@@ -34,3 +34,7 @@ OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 JEV_MODE = "filter"
 JEV_MODEL = "jev-1.13.0"
 DIGEST_DELIVERY_ENABLED = "false"
+# Open new paid checkout only after the membership launch checks pass.
+BILLING_ENABLED = "false"
+# Set STRIPE_PRICE_ID to the reviewed EUR 3/month Price ID before activation.
+# Configure STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET as Worker secrets.

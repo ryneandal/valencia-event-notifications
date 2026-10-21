@@ -38,12 +38,29 @@ CREATE TABLE IF NOT EXISTS events (
   event_key TEXT UNIQUE NOT NULL,
   title TEXT NOT NULL,
   start_at TEXT NOT NULL,
+  end_at TEXT,
+  time_precision TEXT NOT NULL DEFAULT 'unverified'
+    CHECK (time_precision IN ('date', 'datetime', 'unverified')),
+  location TEXT NOT NULL DEFAULT '',
   url TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL,
   first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS source_checks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  checked_date TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('ok', 'error')),
+  fetched_count INTEGER NOT NULL DEFAULT 0 CHECK (fetched_count >= 0),
+  event_count INTEGER NOT NULL DEFAULT 0 CHECK (event_count >= 0),
+  checked_at TEXT NOT NULL,
+  error_code TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_source_checks_date_time
+  ON source_checks(checked_date, checked_at);
 
 CREATE TABLE IF NOT EXISTS digest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,3 +160,49 @@ CREATE INDEX IF NOT EXISTS idx_jev_evaluations_event
   ON jev_evaluations(event_id);
 CREATE INDEX IF NOT EXISTS idx_jev_answer_cache_created
   ON jev_answer_cache(created_at);
+
+CREATE TABLE IF NOT EXISTS delivery_preferences (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  days TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS saved_events (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, event_id)
+);
+CREATE TABLE IF NOT EXISTS pilot_participants (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  study_code TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pilot_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  study_code TEXT NOT NULL REFERENCES pilot_participants(study_code) ON DELETE CASCADE,
+  preview_date TEXT NOT NULL,
+  result_state TEXT NOT NULL CHECK (result_state IN
+    ('recommendations','empty','filtered','partial','unavailable')),
+  useful INTEGER CHECK (useful IN (0,1)),
+  action TEXT CHECK (action IN ('organizer','save','copy','calendar')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pilot_feedback_study ON pilot_feedback(study_code);
+CREATE INDEX IF NOT EXISTS idx_pilot_expiry ON pilot_participants(expires_at);
+
+CREATE TABLE IF NOT EXISTS billing_accounts (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  livemode INTEGER NOT NULL CHECK (livemode IN (0,1)),
+  customer_id TEXT NOT NULL UNIQUE,
+  subscription_id TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'none',
+  cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+  current_period_end INTEGER NOT NULL DEFAULT 0,
+  last_event_created INTEGER NOT NULL DEFAULT 0,
+  sync_version INTEGER NOT NULL DEFAULT 0,
+  checkout_key TEXT NOT NULL DEFAULT '',
+  checkout_created_at INTEGER NOT NULL DEFAULT 0,
+  checkout_url TEXT NOT NULL DEFAULT '',
+  checkout_session_id TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (user_id, livemode)
+);

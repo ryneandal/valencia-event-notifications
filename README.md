@@ -1,6 +1,6 @@
 # Valencia Event Notifications
 
-Receive email notifications about events happening in València, Spain every day.
+Find plans in València and prepare a personalized next-day events digest.
 
 ## Overview
 
@@ -36,8 +36,8 @@ The project core is implemented and running:
 - ✅ A verified production profile with the complete personalization shape is stored in D1
 - ✅ Worker-native event collection, OpenRouter ranking with deterministic
   fallback, branded digest rendering, D1 history, and safe authenticated preview
-- 🚧 Worker runtime/CPU confirmation, custom Mailgun domain, authenticated
-  provider preview, and one controlled live digest remain before delivery cutover
+- 🚧 A custom Mailgun sending domain and one controlled live digest remain
+  before public delivery cutover
 
 See [task.md](task.md) for current tasks and [AGENTS.md](AGENTS.md) for AI coding agent guidelines.
 
@@ -51,6 +51,29 @@ authenticated production preview passed. Digest delivery remains disabled.
 The [Jev implementation plan](specs/jev-integration-plan.md) records the shared
 contract used by the parallel agents. See the
 [configuration and deployment guide](cloudflare/README.md).
+
+The [2026-10-22 planning release](specs/planning-release-2026-10-22.md) is deployed
+on Workers and Pages. It adds four-step onboarding, readable preference review, a ranked
+shortlist with source-check status, a seven-day date chooser, saved plans,
+calendar/copy actions, and delivery-day controls. Current collection covers
+València city through the Ajuntament agenda and ElPeriodic València feed;
+broader area preferences do not guarantee broader coverage. Empty results and
+failed source checks are shown separately. Digest delivery stays disabled.
+New accounts start with email digests paused until the user enables them in
+account preferences; existing accounts retain their subscription state.
+
+The optional planning study asks for explicit consent before voluntary
+feedback. Consent and feedback expire after 30 days; opting out deletes the
+study link and its feedback. Feedback contains result/action categories, not
+event names, email, or preferences. Saved plans stay private to the account and
+remain until removed. See the [planning contract](specs/planning-experience-contract.md).
+
+Stripe-hosted paid membership is prepared at **EUR 3/month to support continued
+development**, subject to price confirmation before activation. Planning tools
+remain available during beta, with no exclusive-feature or coverage promise.
+Billing is disabled; no payment lifecycle or live purchase has been verified.
+The [membership launch guide](specs/membership-launch.md) records the remaining
+Stripe setup, test-mode checks, and live activation work.
 
 ## Architecture
 
@@ -102,6 +125,12 @@ The local reference command uses SQLite (`events.db`) for event processing:
 The scheduled Cloudflare Worker stores event, recommendation, run, and delivery
 history in D1. Retained SQLite users exist only to exercise the local CLI; local
 sessions and the unused local recommendation join table have been removed.
+
+The pending planning migrations add public source-check history and event time
+precision, private saved-event and delivery-day state, expiring study feedback,
+and billing-account references separated by Stripe test/live mode. Payment
+details stay on Stripe's hosted pages. These schema additions require deployment
+before the corresponding account controls are available.
 
 ## Quick Start
 

@@ -12,12 +12,13 @@ export const AUDIENCE_OPTIONS = [
 ];
 
 export const LOCATION_OPTIONS = [
-  { value: 'Valencia city', label: 'València city', detail: 'Easy city plans' },
-  { value: 'Valencia metro area', label: 'Metro area', detail: 'Nearby towns and coast' },
+  { value: 'Valencia city', label: 'València city', detail: 'The focus of the sources we currently check', available: true },
+  { value: 'Valencia metro area', label: 'Metro area', detail: 'Saved preference; wider metro coverage is not yet available', available: false },
   {
     value: 'easy day trips (<=60-90 min)',
     label: 'Day trips',
-    detail: 'Up to 60–90 minutes away'
+    detail: 'Saved preference; day-trip coverage is not yet available',
+    available: false
   }
 ];
 
@@ -82,12 +83,12 @@ export const SEASONAL_ANCHORS = [
 
 export const DEFAULT_FORM_STATE = {
   email: '',
-  audience: 'family_with_school_age_kids',
+  audience: '',
   locations: ['Valencia city'],
-  interests: ['local_festivals_spectacle', 'parks_and_play'],
-  positiveSignals: ['interactive', 'outdoors', 'daytime', 'near_transit'],
-  negativeSignals: ['starts_after_20', 'crowd_extreme'],
-  seasonalAnchors: ['Fallas', 'Gran_Feria_de_Julio']
+  interests: [],
+  positiveSignals: [],
+  negativeSignals: [],
+  seasonalAnchors: []
 };
 
 export function buildPersonalizationProfile(formState) {

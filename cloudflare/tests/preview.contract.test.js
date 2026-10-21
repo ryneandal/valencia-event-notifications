@@ -15,6 +15,27 @@ const envelope = (evaluation) => ({
   contract_version: 'jev-preview-v1', summary, evaluations: [evaluation]
 });
 
+function planningEnvelope() {
+  return {
+    ...envelope(structuredClone(examples.matched)),
+    plans: {
+      version: 'brisa-plans-v1', date: '2026-10-22', checked_at: '2026-10-21T20:00:00Z',
+      delivery_enabled: false,
+      coverage: {
+        state: 'complete', collected_count: 1,
+        sources: [{ name: 'ajuntament_agenda', status: 'ok', fetched_count: 8, event_count: 1, checked_at: '2026-10-21T20:00:00Z' }]
+      },
+      recommendations: [{
+        id: 7, event_key: 'fixture-jazz', title: 'Jazz in the garden', url: 'https://example.org/jazz',
+        start_at: '2026-10-22T19:00:00+02:00', end_at: null, time_precision: 'datetime',
+        location: '', description: 'Public listing', source: 'ajuntament_agenda',
+        position: 1, reason: 'Suggested from your saved choices.', used_fallback: false, type_decision: 'eligible'
+      }],
+      excluded_count: 0
+    }
+  };
+}
+
 describe('shared Jev preview contract', () => {
   test.each(Object.entries(examples))('accepts the shared %s example unchanged', (_, example) => {
     expect(validPreviewEvaluation(example)).toBe(true);
@@ -102,5 +123,76 @@ describe('shared Jev preview contract', () => {
     expect(savedEventTypes(blob([]))).toBeNull();
     expect(savedEventTypes('{}')).toBeNull();
     expect(savedEventTypes('invalid JSON')).toBeNull();
+  });
+});
+
+describe('additive planning preview contract', () => {
+  test('keeps the authoritative ranked shortlist and public facts intact', () => {
+    const payload = planningEnvelope();
+    expect(parseDigestPreview(payload, examples.matched.selected_event_types).plans).toEqual(payload.plans);
+    const legacy = parseDigestPreview(envelope(examples.matched), examples.matched.selected_event_types);
+    expect(legacy.plans).toBeNull();
+  });
+
+  test.each([
+    ['unknown version', (value) => { value.plans.version = 'unknown'; }],
+    ['private top-level field', (value) => { value.plans.user_id = 1; }],
+    ['private event field', (value) => { value.plans.recommendations[0].email = 'private@example.org'; }],
+    ['unsafe URL', (value) => { value.plans.recommendations[0].url = 'javascript:alert(1)'; }],
+    ['credential URL', (value) => { value.plans.recommendations[0].url = 'https://user:password@example.org/jazz'; }],
+    ['account URL', (value) => { value.plans.recommendations[0].url = 'https://example.org/api/verify?token=secret'; }],
+    ['string id', (value) => { value.plans.recommendations[0].id = '7'; }],
+    ['Boolean id', (value) => { value.plans.recommendations[0].id = true; }],
+    ['unsafe integer id', (value) => { value.plans.recommendations[0].id = Number.MAX_SAFE_INTEGER + 1; }],
+    ['zero id', (value) => { value.plans.recommendations[0].id = 0; }],
+    ['invalid event key', (value) => { value.plans.recommendations[0].event_key = 'a\nb'; }],
+    ['missing public description', (value) => { delete value.plans.recommendations[0].description; }],
+    ['oversized description', (value) => { value.plans.recommendations[0].description = 'a'.repeat(8001); }],
+    ['numeric reason', (value) => { value.plans.recommendations[0].reason = 1; }],
+    ['non-Boolean fallback', (value) => { value.plans.recommendations[0].used_fallback = 0; }],
+    ['unknown decision', (value) => { value.plans.recommendations[0].type_decision = 'recommended'; }],
+    ['wrong rank position', (value) => { value.plans.recommendations[0].position = 2; }],
+    ['duplicate events', (value) => { value.plans.recommendations.push({ ...value.plans.recommendations[0], position: 2 }); value.summary = { ...value.summary, event_count: 2 }; value.plans.coverage.collected_count = 2; }],
+    ['impossible date', (value) => { value.plans.date = '2026-02-30'; }],
+    ['invalid check time', (value) => { value.plans.checked_at = 'tomorrow'; }],
+    ['null start time', (value) => { value.plans.recommendations[0].start_at = null; }],
+    ['unzoned time', (value) => { value.plans.recommendations[0].start_at = '2026-10-22T19:00:00'; }],
+    ['invalid precision', (value) => { value.plans.recommendations[0].time_precision = 'estimated'; }],
+    ['end before start', (value) => { value.plans.recommendations[0].end_at = '2026-10-21T19:00:00Z'; }],
+    ['string delivery state', (value) => { value.plans.delivery_enabled = 'false'; }],
+    ['Boolean collection count', (value) => { value.plans.coverage.collected_count = true; }],
+    ['wrong collection count', (value) => { value.plans.coverage.collected_count = 2; }],
+    ['negative exclusion count', (value) => { value.plans.excluded_count = -1; }],
+    ['excess exclusion count', (value) => { value.plans.excluded_count = 2; }],
+    ['fractional source count', (value) => { value.plans.coverage.sources[0].fetched_count = 0.5; }],
+    ['unknown source status', (value) => { value.plans.coverage.sources[0].status = 'failed'; }],
+    ['private source details', (value) => { value.plans.coverage.sources[0].raw_error = 'private'; }],
+    ['null source time', (value) => { value.plans.coverage.sources[0].checked_at = null; }],
+    ['duplicate source', (value) => { value.plans.coverage.sources.push({ ...value.plans.coverage.sources[0] }); }],
+    ['inconsistent coverage state', (value) => { value.plans.coverage.state = 'unavailable'; }],
+    ['excess sources', (value) => { value.plans.coverage.sources = Array.from({ length: 33 }, (_, i) => ({ ...value.plans.coverage.sources[0], name: 'source-' + i })); }],
+    ['excess recommendations', (value) => { value.plans.recommendations = Array.from({ length: 101 }, (_, i) => ({ ...value.plans.recommendations[0], id: i + 1, event_key: 'event-' + i, position: i + 1 })); value.summary = { ...value.summary, event_count: 101 }; value.plans.coverage.collected_count = 101; }]
+  ])('rejects %s without falling back to misleading legacy output', (_, mutate) => {
+    const payload = planningEnvelope();
+    mutate(payload);
+    expect(() => parseDigestPreview(payload, examples.matched.selected_event_types)).toThrow(/read this preview safely/);
+  });
+
+  test('does not accept unversioned, null, or mismatched-date plans', () => {
+    const payload = planningEnvelope();
+    expect(() => parseDigestPreview({ ...payload, plans: null }, examples.matched.selected_event_types)).toThrow();
+    expect(() => parseDigestPreview({ summary, plans: payload.plans }, ['film'])).toThrow();
+    payload.summary = { ...summary, digest_date: '2026-10-23' };
+    expect(() => parseDigestPreview(payload, examples.matched.selected_event_types)).toThrow();
+  });
+
+  test('accepts partial and unavailable coverage without relabeling them as empty', () => {
+    const payload = planningEnvelope();
+    payload.plans.coverage.sources.push({ name: 'other_source', status: 'error', fetched_count: 0, event_count: 0, checked_at: payload.plans.checked_at });
+    payload.plans.coverage.state = 'partial';
+    expect(parseDigestPreview(payload, examples.matched.selected_event_types).plans.coverage.state).toBe('partial');
+    payload.plans.coverage.sources.forEach((source) => { source.status = 'error'; });
+    payload.plans.coverage.state = 'unavailable';
+    expect(parseDigestPreview(payload, examples.matched.selected_event_types).plans.coverage.state).toBe('unavailable');
   });
 });
