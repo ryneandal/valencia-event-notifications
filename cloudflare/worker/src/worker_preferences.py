@@ -1,7 +1,7 @@
 """Validate bounded event interests before persisting a subscriber profile."""
 
 import json
-from typing import Any
+from typing import Any, NoReturn
 
 MAX_PREFERENCES_BYTES = 16_384
 
@@ -67,12 +67,16 @@ EVENT_TYPE_INCLUDES = {
 }
 
 
+def _reject_non_finite_number(_value: str) -> NoReturn:
+    raise ValueError("Preferences must contain finite JSON numbers.")
+
+
 def normalize_preferences_blob(blob: Any) -> str:
     """Require supported, unique selections and restore trusted definitions."""
     if not isinstance(blob, str) or len(blob.encode("utf-8")) > MAX_PREFERENCES_BYTES:
         raise ValueError("Preferences must be a JSON string of at most 16384 bytes.")
     try:
-        profile = json.loads(blob)
+        profile = json.loads(blob, parse_constant=_reject_non_finite_number)
     except (ValueError, RecursionError) as exc:
         raise ValueError("Preferences must contain a JSON object.") from exc
     if not isinstance(profile, dict):
@@ -97,4 +101,17 @@ def normalize_preferences_blob(blob: Any) -> str:
         for name, includes in EVENT_TYPE_INCLUDES.items()
         if name in selected
     ]
-    return json.dumps(profile, ensure_ascii=False, separators=(",", ":"))
+    try:
+        normalized = json.dumps(
+            profile, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        )
+        normalized_size = len(normalized.encode("utf-8"))
+    except (ValueError, RecursionError) as exc:
+        raise ValueError(
+            "Preferences must contain valid JSON with finite numbers."
+        ) from exc
+    if normalized_size > MAX_PREFERENCES_BYTES:
+        raise ValueError(
+            "Preferences must be at most 16384 bytes after event types are normalized."
+        )
+    return normalized

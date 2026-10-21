@@ -7,10 +7,10 @@ The Git-connected Pages project serves the React/Vite onboarding SPA and
 same-origin API proxy. The Python Worker, D1 database, single-use magic links,
 and Mailgun sandbox delivery are also deployed.
 
-Public Pages and direct Worker health checks passed on 2026-10-21. Current
-authenticated Cron/D1/provider checks remain outstanding; see the
-[status report](project-status-2026-10-21.md). The 12-option interest selector and
-server validation are implemented locally, pending deployment.
+Public Pages and direct Worker health checks passed on 2026-10-21, followed by
+authenticated Cron/D1 checks and successful production Jev previews. The
+12-option interest selector and server validation are deployed, and Jev
+filtering is active. See the [release record](jev-deployment-2026-10-21.md).
 
 The complete registration, magic-link, session, and profile round-trip is live.
 Production D1 contains a verified active profile with all six authoritative
@@ -83,9 +83,12 @@ minimum of one selection. All existing category IDs remain supported. The Worker
 accepts only unique catalog names and replaces `includes` with trusted catalog
 definitions. Invalid selections return HTTP 422 with `field: "interests"` before
 any profile write or email send. `preferences_blob` must be a JSON object encoded
-as a string, at most 16,384 UTF-8 bytes. Unknown saved IDs do not become new UI
-options; supported choices are restored, and a profile with no supported choices
-requires a new selection before it can be saved. The six stored field names and
+as a string, at most 16,384 UTF-8 bytes both before and after trusted definitions
+are restored. Nonstandard JSON constants (`NaN`, `Infinity`, `-Infinity`) and
+numbers that overflow to a nonfinite value are rejected before persistence.
+Unknown saved IDs do not become new UI options; supported choices are restored,
+and a profile with no supported choices requires a new selection before it can
+be saved. The six stored field names and
 existing ranking interface remain unchanged.
 
 ## User experience requirements

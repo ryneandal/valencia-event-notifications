@@ -63,6 +63,9 @@ Last reviewed for the bounded-interest and Jev work: 2026-10-21.
       fixtures, and deploy `shadow` mode with digest delivery disabled
     - [x] Fix nullable D1 bindings, validate an authenticated Worker preview,
       and enable Jev filtering with digest delivery disabled
+    - [x] Complete independent standards/spec reviews and fix canonical profile
+      size and strict JSON validation; record the
+      [review results](specs/jev-review-2026-10-21.md)
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
