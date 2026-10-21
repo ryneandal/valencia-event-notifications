@@ -1,0 +1,78 @@
+{
+  "matched": {
+    "event": {"event_key": "fixture-jazz", "title": "Jazz in the garden", "url": "https://example.com/jazz"},
+    "selected_event_types": ["live_music", "food_drink"],
+    "taxonomy_version": "event-types-v1",
+    "question_version": "event-type-questions-v1",
+    "scoring_version": "noul-any-type-v1",
+    "model": "jev-1.13.0",
+    "evaluated_at": "2026-10-21T09:00:00Z",
+    "status": "evaluated", "decision": "eligible",
+    "irrelevance_score": 0, "threshold": 0.6,
+    "components": [
+      {"question_id": "event_type:live_music", "event_type": "live_music", "p_yes": 0.94, "confidence": 0.88, "weight": 0.5, "contribution": 0},
+      {"question_id": "event_type:food_drink", "event_type": "food_drink", "p_yes": 0.08, "confidence": 0.84, "weight": 0.5, "contribution": 0}
+    ],
+    "error_code": null
+  },
+  "irrelevant": {
+    "event": {"event_key": "fixture-architecture", "title": "Architecture walking tour", "url": "https://example.com/walk"},
+    "selected_event_types": ["live_music", "food_drink"],
+    "taxonomy_version": "event-types-v1",
+    "question_version": "event-type-questions-v1",
+    "scoring_version": "noul-any-type-v1",
+    "model": "jev-1.13.0",
+    "evaluated_at": "2026-10-21T09:00:00Z",
+    "status": "evaluated", "decision": "irrelevant",
+    "irrelevance_score": 0.85, "threshold": 0.6,
+    "components": [
+      {"question_id": "event_type:live_music", "event_type": "live_music", "p_yes": 0.05, "confidence": 0.9, "weight": 0.5, "contribution": 0.45},
+      {"question_id": "event_type:food_drink", "event_type": "food_drink", "p_yes": 0.1, "confidence": 0.8, "weight": 0.5, "contribution": 0.4}
+    ],
+    "error_code": null
+  },
+  "uncertain": {
+    "event": {"event_key": "fixture-short-listing", "title": "Evening at the square", "url": "https://example.com/evening"},
+    "selected_event_types": ["live_music", "food_drink"],
+    "taxonomy_version": "event-types-v1",
+    "question_version": "event-type-questions-v1",
+    "scoring_version": "noul-any-type-v1",
+    "model": "jev-1.13.0",
+    "evaluated_at": "2026-10-21T09:00:00Z",
+    "status": "uncertain", "decision": "unknown",
+    "irrelevance_score": null, "threshold": 0.6,
+    "components": [
+      {"question_id": "event_type:live_music", "event_type": "live_music", "p_yes": 0.5, "confidence": 0, "weight": 0.5, "contribution": null},
+      {"question_id": "event_type:food_drink", "event_type": "food_drink", "p_yes": 0.55, "confidence": 0.1, "weight": 0.5, "contribution": null}
+    ],
+    "error_code": null
+  },
+  "fallback": {
+    "event": {"event_key": "fixture-jazz", "title": "Jazz in the garden", "url": "https://example.com/jazz"},
+    "selected_event_types": ["live_music", "food_drink"],
+    "taxonomy_version": "event-types-v1",
+    "question_version": "event-type-questions-v1",
+    "scoring_version": "noul-any-type-v1",
+    "model": null,
+    "evaluated_at": "2026-10-21T09:00:00Z",
+    "status": "fallback", "decision": "unknown",
+    "irrelevance_score": null, "threshold": 0.6, "components": [],
+    "error_code": "provider_unavailable"
+  },
+  "threshold_equality": {
+    "event": {"event_key": "fixture-boundary", "title": "Community open day", "url": "https://example.com/open-day"},
+    "selected_event_types": ["live_music", "food_drink"],
+    "taxonomy_version": "event-types-v1",
+    "question_version": "event-type-questions-v1",
+    "scoring_version": "noul-any-type-v1",
+    "model": "jev-1.13.0",
+    "evaluated_at": "2026-10-21T09:00:00Z",
+    "status": "evaluated", "decision": "eligible",
+    "irrelevance_score": 0.6, "threshold": 0.6,
+    "components": [
+      {"question_id": "event_type:live_music", "event_type": "live_music", "p_yes": 0.2, "confidence": 0.6, "weight": 0.5, "contribution": 0.3},
+      {"question_id": "event_type:food_drink", "event_type": "food_drink", "p_yes": 0.2, "confidence": 0.6, "weight": 0.5, "contribution": 0.3}
+    ],
+    "error_code": null
+  }
+}

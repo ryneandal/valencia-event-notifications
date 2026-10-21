@@ -401,5 +401,118 @@ def test_empty_run_completes_without_ranking_or_delivery():
     assert summary["event_count"] == 0
     assert summary["subscriber_count"] == 0
     assert summary["sent_count"] == 0
+
+
+def test_targeted_jev_preview_uses_saved_profile_and_clears_stale_recommendations():
+    connection = database()
+    profile = json.dumps(
+        {
+            "audience": "solo",
+            "location_scope": ["Valencia"],
+            "top_interest_clusters": [{"name": "live_music", "includes": []}],
+            "strong_positive_signals": [],
+            "strong_negative_signals": [],
+            "seasonal_anchors": [],
+        }
+    )
+    connection.execute("UPDATE users SET preferences_blob = ? WHERE id = 1", (profile,))
+    connection.execute(
+        "INSERT INTO subscriptions(user_id, is_subscribed) VALUES (1, 0)"
+    )
+    connection.commit()
+    captured = []
+    probability = 0.9
+
+    async def fake_jev(body):
+        captured.append(body)
+        return {
+            "model": body["model"],
+            "answers": {"event_type:live_music": {"type": "noul", "noul": probability}},
+        }
+
+    async def forbidden_delivery(*_args):
+        raise AssertionError("Targeted previews must never send email")
+
+    env = SimpleNamespace(
+        DB=SQLiteD1(connection),
+        COLLECT_EVENTS=fake_collector,
+        JEV_MODE="filter",
+        JEV_FETCH=fake_jev,
+        DIGEST_DELIVERY=forbidden_delivery,
+    )
+    now = datetime(2026, 9, 4, 8, tzinfo=UTC)
+    first = asyncio.run(
+        orchestrator.run_digest(env, now=now, dry_run=True, target_user_id=1)
+    )
+    assert set(first) == {"contract_version", "summary", "evaluations"}
+    assert first["contract_version"] == "jev-preview-v1"
+    assert first["summary"]["subscriber_count"] == 1
+    assert first["summary"]["rendered_count"] == 1
+    assert first["evaluations"][0]["selected_event_types"] == ["live_music"]
+    assert connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 1
+
+    # Change the source evidence so this evaluation cannot reuse the original answer.
+    async def changed_collector(env, target_date):
+        events, diagnostics = await fake_collector(env, target_date)
+        events[0]["description"] = "A walking tour with no performance."
+        return events, diagnostics
+
+    probability = 0.05
+    env.COLLECT_EVENTS = changed_collector
+    second = asyncio.run(
+        orchestrator.run_digest(env, now=now, dry_run=True, target_user_id=1)
+    )
+    assert second["summary"]["skipped_count"] == 1
+    assert second["summary"]["failure_count"] == 0
+    assert second["summary"]["fallback_count"] == 0
+    assert second["summary"]["sent_count"] == 0
+    assert second["evaluations"][0]["decision"] == "irrelevant"
+    assert connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0
+    assert connection.execute("SELECT COUNT(*) FROM deliveries").fetchone()[0] == 0
+    rows = connection.execute(
+        "SELECT user_id, decision FROM jev_evaluations ORDER BY id"
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [(1, "eligible"), (1, "irrelevant")]
+    assert all("reader-" not in json.dumps(body) for body in captured)
+    assert "preferences_blob" not in json.dumps(captured)
+    assert "reader-" not in json.dumps(second)
+
+
+def test_jev_aggregate_runs_do_not_expose_private_evaluations():
+    connection = database()
+    env = SimpleNamespace(
+        DB=SQLiteD1(connection), COLLECT_EVENTS=fake_collector, JEV_MODE="shadow"
+    )
+    result = asyncio.run(
+        orchestrator.run_digest(
+            env, now=datetime(2026, 9, 4, 8, tzinfo=UTC), dry_run=True
+        )
+    )
+    assert "evaluations" not in result
+    assert "contract_version" not in result
+    assert result["subscriber_count"] == 2
+    assert result["failure_count"] == 0
+    assert connection.execute("SELECT COUNT(*) FROM jev_evaluations").fetchone()[0] == 2
+    assert "reader-" not in json.dumps(result)
+
+
+def test_targeted_off_preview_has_explicit_disabled_state_without_provider_call():
+    connection = database()
+
+    async def forbidden(_body):
+        raise AssertionError("Disabled Jev must not call the provider")
+
+    env = SimpleNamespace(
+        DB=SQLiteD1(connection), COLLECT_EVENTS=fake_collector, JEV_FETCH=forbidden
+    )
+    result = asyncio.run(
+        orchestrator.run_digest(
+            env, now=datetime(2026, 9, 4, 8, tzinfo=UTC), dry_run=True, target_user_id=1
+        )
+    )
+    assert result["evaluations"][0]["error_code"] == "feature_disabled"
+    assert result["summary"]["subscriber_count"] == 1
+    assert result["summary"]["sent_count"] == 0
+    assert connection.execute("SELECT COUNT(*) FROM jev_evaluations").fetchone()[0] == 0
     status = connection.execute("SELECT status FROM digest_runs").fetchone()[0]
     assert status == "completed"

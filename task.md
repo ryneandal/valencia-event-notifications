@@ -1,6 +1,6 @@
 # Project Tasks
 
-Last reconciled with the codebase and PoC architecture: 2026-09-05.
+Last reviewed for the bounded-interest and Jev work: 2026-10-21.
 
 - [x] **Core Infrastructure**
     - [x] Project scaffolding
@@ -34,6 +34,9 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] Implement and test verified, single-use email magic links
     - [x] Configure Mailgun delivery, migrate D1, and deploy magic-link auth
     - [x] Add pause/resume subscription controls
+    - [x] Implement 12 bounded event-type choices, preserve saved IDs, and validate
+      registration/profile writes against the catalog; tested locally
+    - [ ] Deploy the bounded selector and Worker validation
     - [x] Remove the legacy FastAPI onboarding path and D1 HTTP subscriber bridge;
       retained SQLite tools are local-only
 
@@ -45,11 +48,26 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] Multi-user digest generation loop (`cli.py`)
     - [x] Persist selected order, relevance reasons, model ID, and fallback state
       to D1 `recommendations`
+    - [x] Research TypeSafe's Jev API and add a
+      [parallel implementation plan](specs/jev-integration-plan.md) with shared
+      schema/fixtures, per-type Noul questions, and additive irrelevance scoring
+    - [x] Implement Jev transport/scoring and frontend decision interactions in
+      parallel against the reviewed shared contract
+    - [x] Integrate targeted previews, cached type answers, and private evaluation
+      persistence; verify offline scoring, retries, identity isolation, and UI
+    - [x] Complete integration review and browser verification with fake providers;
+      record [results and limits](specs/jev-verification-2026-10-21.md)
+    - [ ] Apply the Jev D1 migration and deploy Worker before Pages; validate
+      shadow results before enabling Jev filtering
 
 - [ ] **Cloudflare Worker migration (Python)**
     - [x] Rewrite JS Worker as Python Worker (`cloudflare/worker/src/`)
     - [x] Pytest coverage for the Worker (`tests/test_cloudflare_worker.py`)
     - [x] Configure the deployed D1 binding in `wrangler.toml`
+    - [x] Recheck public Pages/proxy/direct Worker availability on 2026-10-21;
+      record the [evidence and limits](specs/project-status-2026-10-21.md)
+    - [ ] Recheck current deployed version, Cron/D1/provider state with authenticated
+      Cloudflare access; complete the controlled delivery smoke
     - [x] Add the Pages Function `/api/*` proxy
     - [x] Add and deploy a `scheduled()` handler with a daily Cron Trigger
     - [x] Dispatch scheduled and authenticated preview runs through a
@@ -70,8 +88,6 @@ Last reconciled with the codebase and PoC architecture: 2026-09-05.
     - [x] [RYN-134](https://linear.app/ryneandal/issue/RYN-134/add-an-offline-full-digest-pipeline-integration-test): add an offline full-pipeline integration test
 
 - [ ] **Post-PoC enhancements**
-    - [ ] [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): generate privacy-bounded,
-      schema-validated related interest/signal tags through the configured LLM
-      and display them as optional accessible chips during registration/editing;
-      retain deterministic tags and the exact six-field profile contract as the
-      fallback
+    - [ ] Re-scope [RYN-130](https://linear.app/ryneandal/issue/RYN-130/generate-dynamic-related-onboarding-tags-with-an-llm): suggestions must select from the
+      reviewed bounded catalog; arbitrary new event types conflict with the
+      current selection contract

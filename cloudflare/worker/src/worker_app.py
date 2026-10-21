@@ -17,6 +17,7 @@ from worker_auth import (
 from worker_durable import dispatch_digest
 from worker_email import DeliveryConfigurationError, deliver_magic_link
 from worker_http import AppResponse, json_response
+from worker_preferences import normalize_preferences_blob
 from worker_runtime import (
     env_value,
     header_get,
@@ -75,12 +76,17 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         except Exception:
             return json_response({"error": "Invalid JSON payload"}, 400)
 
-        preferences_blob = payload.get("preferences_blob")
-
         try:
             email = normalize_email(payload.get("email"))
         except ValueError:
             return json_response({"error": "Invalid email"}, 400)
+
+        try:
+            preferences_blob = normalize_preferences_blob(
+                payload.get("preferences_blob")
+            )
+        except ValueError as exc:
+            return json_response({"error": str(exc), "field": "interests"}, 422)
 
         db = env_value(env, "DB")
         user = record_to_dict(
@@ -268,7 +274,12 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         except Exception:
             return json_response({"error": "Invalid JSON payload"}, 400)
 
-        preferences_blob = payload.get("preferences_blob")
+        try:
+            preferences_blob = normalize_preferences_blob(
+                payload.get("preferences_blob")
+            )
+        except ValueError as exc:
+            return json_response({"error": str(exc), "field": "interests"}, 422)
 
         await (
             env_value(env, "DB")
@@ -315,13 +326,13 @@ async def handle_request(request: Any, env: Any) -> AppResponse:
         if not user:
             return json_response({"error": "Unauthorized"}, 401)
         try:
-            summary = await dispatch_digest(
+            preview = await dispatch_digest(
                 env,
                 dry_run=True,
                 target_user_id=int(user["id"]),
             )
         except Exception:
             return json_response({"error": "Unable to run digest preview"}, 502)
-        return json_response({"summary": summary})
+        return json_response(preview)
 
     return json_response({"error": "Not found"}, 404)

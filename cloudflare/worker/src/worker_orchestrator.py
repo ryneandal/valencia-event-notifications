@@ -5,6 +5,7 @@ from typing import Any
 
 from worker_collectors import collect_events, persist_events
 from worker_email import deliver_digest, digest_message
+from worker_jev import fallback_evaluation, selected_types
 from worker_ranking import rank_events
 from worker_runtime import env_value
 from worker_storage import (
@@ -14,10 +15,12 @@ from worker_storage import (
     delete_expired_history,
     finish_digest_run,
     get_or_create_digest_run,
+    get_preview_user,
     list_active_subscribers,
     list_events_by_keys,
     mark_delivery_failed,
     mark_delivery_sent,
+    record_jev_evaluation,
     record_recommendation,
 )
 from worker_time import to_madrid
@@ -86,7 +89,11 @@ async def run_digest(
         log_event("digest.source.completed", correlation_id, **diagnostic)
     collected_keys = await persist_events(db, collected)
     events = await list_events_by_keys(db, collected_keys)
-    subscribers = await list_active_subscribers(db)
+    if dry_run and target_user_id is not None:
+        target = await get_preview_user(db, target_user_id)
+        subscribers = [target] if target else []
+    else:
+        subscribers = await list_active_subscribers(db)
     if target_user_id is not None:
         subscribers = [
             subscriber
@@ -110,11 +117,44 @@ async def run_digest(
     }
 
     ranker = env_value(env, "RANK_EVENTS", rank_events)
+    preview_evaluations: list[dict[str, Any]] = []
+    event_ids = {event["event_key"]: int(event["id"]) for event in events}
     for subscriber in subscribers:
         user_id = int(subscriber["id"])
         claimed = False
         try:
             ranking = await ranker(env, subscriber.get("preferences_blob"), events)
+            evaluations = ranking.evaluations
+            for evaluation in evaluations:
+                await record_jev_evaluation(
+                    db,
+                    digest_run_id=run_id,
+                    user_id=user_id,
+                    event_id=event_ids[evaluation["event"]["event_key"]],
+                    evaluation=evaluation,
+                )
+            if dry_run and target_user_id == user_id:
+                preview_evaluations = evaluations or [
+                    fallback_evaluation(
+                        event,
+                        selected_types(subscriber.get("preferences_blob")),
+                        "feature_disabled",
+                    )
+                    for event in events
+                ]
+            if evaluations:
+                log_event(
+                    "digest.jev.completed",
+                    correlation_id,
+                    evaluation_count=len(evaluations),
+                    duration_ms=ranking.evaluation_duration_ms,
+                    fallback_count=sum(
+                        item["status"] == "fallback" for item in evaluations
+                    ),
+                    irrelevant_count=sum(
+                        item["decision"] == "irrelevant" for item in evaluations
+                    ),
+                )
             if ranking.used_fallback:
                 summary["fallback_count"] += 1
                 error_code = ranking.error_code or "no_candidates"
@@ -125,11 +165,11 @@ async def run_digest(
                     correlation_id,
                     error_code=error_code,
                 )
+            await clear_recommendations(db, run_id, user_id)
             if not ranking.events:
                 summary["skipped_count"] += 1
                 continue
 
-            await clear_recommendations(db, run_id, user_id)
             for position, event in enumerate(ranking.events, start=1):
                 await record_recommendation(
                     db,
@@ -231,4 +271,10 @@ async def run_digest(
         failure_count=summary["failure_count"],
         fallback_count=summary["fallback_count"],
     )
+    if dry_run and target_user_id is not None:
+        return {
+            "contract_version": "jev-preview-v1",
+            "summary": summary,
+            "evaluations": preview_evaluations,
+        }
     return summary

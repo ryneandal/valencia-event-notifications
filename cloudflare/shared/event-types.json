@@ -1,0 +1,74 @@
+[
+  {
+    "name": "local_festivals_spectacle",
+    "label": "Festivals & parades",
+    "icon": "✦",
+    "includes": ["parades", "fireworks", "street art/monuments", "processions", "flower battles"]
+  },
+  {
+    "name": "hands_on_learning",
+    "label": "Workshops & science",
+    "icon": "◌",
+    "includes": ["science museum", "interactive exhibits", "kids workshops", "aquarium/planetarium/IMAX-style shows"]
+  },
+  {
+    "name": "animals_and_nature",
+    "label": "Animals & nature",
+    "icon": "⌁",
+    "includes": ["zoo/animal park", "keeper talks", "boat trips", "wetlands/birding", "sunset nature"]
+  },
+  {
+    "name": "parks_and_play",
+    "label": "Parks & outdoor play",
+    "icon": "☼",
+    "includes": ["destination playgrounds", "Turia-style park events", "picnics", "bike-friendly outings"]
+  },
+  {
+    "name": "kid-friendly_culture",
+    "label": "Family shows & activities",
+    "icon": "◒",
+    "includes": ["craft markets", "family theatre/puppets", "street performances", "museum family days"]
+  },
+  {
+    "name": "live_music",
+    "label": "Live music",
+    "icon": "♪",
+    "includes": ["concerts", "live bands", "jazz", "classical music", "DJ sets"]
+  },
+  {
+    "name": "performing_arts",
+    "label": "Theatre, dance & opera",
+    "icon": "◇",
+    "includes": ["theatre", "dance performances", "opera", "comedy", "circus"]
+  },
+  {
+    "name": "art_exhibitions",
+    "label": "Art & exhibitions",
+    "icon": "▧",
+    "includes": ["art exhibitions", "gallery openings", "photography", "design", "museum exhibitions"]
+  },
+  {
+    "name": "film",
+    "label": "Cinema & screenings",
+    "icon": "▷",
+    "includes": ["film screenings", "open-air cinema", "film festivals", "documentaries"]
+  },
+  {
+    "name": "food_drink",
+    "label": "Food & drink",
+    "icon": "◉",
+    "includes": ["food festivals", "food markets", "tastings", "cooking classes"]
+  },
+  {
+    "name": "sports_active",
+    "label": "Sports & active events",
+    "icon": "↗",
+    "includes": ["sports matches", "running events", "cycling events", "group fitness", "guided hikes"]
+  },
+  {
+    "name": "tours_heritage",
+    "label": "History & guided walks",
+    "icon": "⌖",
+    "includes": ["guided city walks", "heritage tours", "historic sites", "architecture tours"]
+  }
+]

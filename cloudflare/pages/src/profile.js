@@ -1,3 +1,5 @@
+import eventTypes from '../../shared/event-types.json';
+
 export const AUDIENCE_OPTIONS = [
   { value: 'solo_adult', label: 'Just me', detail: 'A personal shortlist' },
   { value: 'couple', label: 'Two of us', detail: 'Plans that work as a pair' },
@@ -19,43 +21,15 @@ export const LOCATION_OPTIONS = [
   }
 ];
 
-export const INTEREST_CLUSTERS = [
-  {
-    name: 'local_festivals_spectacle',
-    label: 'Festivals & spectacle',
-    icon: '✦',
-    includes: ['parades', 'fireworks', 'street art/monuments', 'processions', 'flower battles']
-  },
-  {
-    name: 'hands_on_learning',
-    label: 'Hands-on discovery',
-    icon: '◌',
-    includes: [
-      'science museum',
-      'interactive exhibits',
-      'kids workshops',
-      'aquarium/planetarium/IMAX-style shows'
-    ]
-  },
-  {
-    name: 'animals_and_nature',
-    label: 'Animals & nature',
-    icon: '⌁',
-    includes: ['zoo/animal park', 'keeper talks', 'boat trips', 'wetlands/birding', 'sunset nature']
-  },
-  {
-    name: 'parks_and_play',
-    label: 'Parks & play',
-    icon: '☼',
-    includes: ['destination playgrounds', 'Turia-style park events', 'picnics', 'bike-friendly outings']
-  },
-  {
-    name: 'kid-friendly_culture',
-    label: 'Culture for everyone',
-    icon: '◒',
-    includes: ['craft markets', 'family theatre/puppets', 'street performances', 'museum family days']
-  }
-];
+// Keep the stored field name and existing IDs compatible with saved profiles.
+export const INTEREST_CLUSTERS = eventTypes;
+
+export function validInterestSelection(interests) {
+  return Array.isArray(interests) && interests.length > 0 &&
+    interests.length <= INTEREST_CLUSTERS.length &&
+    new Set(interests).size === interests.length &&
+    interests.every((name) => INTEREST_CLUSTERS.some((option) => option.name === name));
+}
 
 export const POSITIVE_SIGNAL_OPTIONS = [
   ['kid_focused', 'Made for children'],
@@ -152,7 +126,9 @@ export function hydrateFormState(email, preferencesBlob) {
         ? profile.location_scope
         : DEFAULT_FORM_STATE.locations,
       interests: Array.isArray(profile.top_interest_clusters)
-        ? profile.top_interest_clusters.map(({ name }) => name)
+        ? INTEREST_CLUSTERS.filter(({ name }) =>
+          profile.top_interest_clusters.some((item) => item?.name === name)
+        ).map(({ name }) => name)
         : DEFAULT_FORM_STATE.interests,
       positiveSignals: Array.isArray(profile.strong_positive_signals)
         ? profile.strong_positive_signals

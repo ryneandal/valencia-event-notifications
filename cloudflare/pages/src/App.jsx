@@ -22,12 +22,14 @@ import {
   hydrateFormState
 } from './profile.js';
 import { validateOnboardingStep, validationTargetId } from './onboarding.js';
+import DigestPreview from './DigestPreview.jsx';
+import { parseDigestPreview, savedEventTypes } from './preview.js';
 
 const STEPS = [
   { eyebrow: 'Welcome', title: 'Where should we send tomorrow?', intro: 'One thoughtful email. No feed to keep up with.' },
   { eyebrow: 'Your people', title: 'Who are we planning for?', intro: 'This helps Brisa understand pace, format, and who needs to enjoy the plan.' },
   { eyebrow: 'Your radius', title: 'How far should we look?', intro: 'Choose every area that feels realistic for a next-day plan.' },
-  { eyebrow: 'Your spark', title: 'What makes a day feel worth it?', intro: 'Choose at least one cluster. The details are passed directly to the event ranker.' },
+  { eyebrow: 'Your spark', title: 'Which events interest you?', intro: 'Choose one or more event types. You can change your choices later.' },
   { eyebrow: 'The practical bits', title: 'More of this. Less of that.', intro: 'These signals help distinguish a technically relevant event from a genuinely good fit.' },
   { eyebrow: 'Local rhythm', title: 'Which traditions should stay on the radar?', intro: 'Brisa will use the selected seasonal anchors when they are relevant.' },
   { eyebrow: 'Review', title: 'This feels like you.', intro: 'We will store this exact profile and use it to shape each digest.' }
@@ -128,6 +130,9 @@ export default function App() {
   const initialized = useRef(false);
   const previousStep = useRef(0);
   const stepTitleRef = useRef(null);
+  const completionTitleRef = useRef(null);
+  const previewRequest = useRef(0);
+  const previewController = useRef(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(DEFAULT_FORM_STATE);
   const [currentUser, setCurrentUser] = useState(null);
@@ -136,7 +141,8 @@ export default function App() {
   const [validationError, setValidationError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completion, setCompletion] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState({ status: 'idle' });
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const profile = useMemo(() => buildPersonalizationProfile(form), [form]);
   const current = STEPS[step];
@@ -189,6 +195,45 @@ export default function App() {
     document.getElementById(validationTargetId(validationError.field))?.focus();
   }, [validationError]);
 
+  useEffect(() => {
+    if (sessionExpired) document.getElementById('email')?.focus();
+  }, [sessionExpired]);
+
+  useEffect(() => {
+    if (completion) completionTitleRef.current?.focus();
+  }, [completion]);
+
+  useEffect(() => () => {
+    previewRequest.current += 1;
+    previewController.current?.abort();
+  }, []);
+
+  const clearPreview = () => {
+    previewRequest.current += 1;
+    previewController.current?.abort();
+    previewController.current = null;
+    setPreview({ status: 'idle' });
+  };
+
+  const expireSession = () => {
+    clearPreview();
+    setCurrentUser(null);
+    setForm({ ...DEFAULT_FORM_STATE, email: currentUser?.email || form.email });
+    setCompletion(null);
+    setStep(0);
+    setNotice('Your session has expired. Enter your email and choose Resume setup to sign in again.');
+    setError('');
+    setSessionExpired(true);
+  };
+
+  const editProfile = () => {
+    clearPreview();
+    setError('');
+    setNotice('');
+    setCompletion(null);
+    setStep(1);
+  };
+
   const clearValidationError = (field) => {
     setValidationError((currentError) =>
       currentError?.field === field ? null : currentError
@@ -201,6 +246,7 @@ export default function App() {
   };
 
   const goNext = async () => {
+    if (busy) return;
     setError('');
     const nextValidationError = validateOnboardingStep(step, form);
     if (nextValidationError) {
@@ -213,12 +259,14 @@ export default function App() {
       return;
     }
 
+    clearPreview();
     setBusy(true);
     try {
       const payload = currentUser
         ? await updateUserProfile(profile)
         : await registerUser(form.email.trim(), profile);
       setCurrentUser(payload.user);
+      setForm(hydrateFormState(payload.user.email, payload.user.preferences_blob));
       if (currentUser) {
         setCompletion({ kind: 'saved', email: payload.user.email });
         setNotice('Your personalisation profile is saved.');
@@ -227,7 +275,8 @@ export default function App() {
         setNotice('Check your inbox to confirm your subscription.');
       }
     } catch (requestError) {
-      setError(
+      if (requestError.status === 401) expireSession();
+      else setError(
         requestError.status === 409
           ? 'That email is already registered. Resume the existing setup from the first step.'
           : requestError.message
@@ -258,6 +307,7 @@ export default function App() {
   };
 
   const signOut = async () => {
+    clearPreview();
     setBusy(true);
     try {
       await logoutUser();
@@ -266,6 +316,7 @@ export default function App() {
       setStep(0);
       setCompletion(null);
       setNotice('Signed out.');
+      setSessionExpired(false);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -274,6 +325,7 @@ export default function App() {
   };
 
   const changeSubscription = async (subscribed) => {
+    clearPreview();
     setBusy(true);
     setError('');
     setNotice('');
@@ -294,22 +346,29 @@ export default function App() {
   };
 
   const previewDigest = async () => {
-    setBusy(true);
+    if (busy || !currentUser || completion?.kind === 'link-sent') return;
+    clearPreview();
+    const selectedTypes = savedEventTypes(currentUser.preferences_blob);
+    if (!selectedTypes) {
+      setPreview({ status: 'error', retryable: false, message: 'Your saved event types need review. Edit and save your profile before requesting a preview.' });
+      return;
+    }
+    const requestId = previewRequest.current;
+    const controller = new AbortController();
+    previewController.current = controller;
     setError('');
     setNotice('');
-    setPreview(null);
+    setPreview({ status: 'loading' });
     try {
-      const { summary } = await runDigestPreview();
-      setPreview(summary);
-      setNotice(
-        summary.event_count
-          ? `Preview ready: ${summary.event_count} event${summary.event_count === 1 ? '' : 's'} found for tomorrow.${summary.fallback_count ? ' Ranking used the safe deterministic fallback.' : ' OpenRouter ranking completed.'} No email was sent.`
-          : 'Preview completed safely, but the current sources did not find an event for tomorrow. No email was sent.'
-      );
+      const payload = await runDigestPreview(fetch, { signal: controller.signal });
+      if (requestId !== previewRequest.current) return;
+      setPreview({ status: 'ready', result: parseDigestPreview(payload, selectedTypes) });
     } catch (requestError) {
-      setError(requestError.message);
+      if (requestId !== previewRequest.current) return;
+      if (requestError.status === 401) expireSession();
+      else setPreview({ status: 'error', message: requestError.message });
     } finally {
-      setBusy(false);
+      if (requestId === previewRequest.current) previewController.current = null;
     }
   };
 
@@ -320,7 +379,7 @@ export default function App() {
     return (
       <main className="onboarding-shell">
         <StoryPanel />
-        <section className="form-panel success-screen" aria-live="polite">
+        <section className="form-panel success-screen">
           <div className="success-mark" aria-hidden="true">✦</div>
           <p className="eyebrow">
             {awaitingVerification
@@ -331,7 +390,7 @@ export default function App() {
                   ? 'EMAIL VERIFIED'
                   : 'YOUR BRISA ACCOUNT'}
           </p>
-          <h2>
+          <h2 ref={completionTitleRef} tabIndex="-1">
             {awaitingVerification
               ? 'One quick step remains.'
               : subscribed
@@ -353,11 +412,11 @@ export default function App() {
             {awaitingVerification ? (
               <button className="next-button" onClick={() => { setCompletion(null); setStep(0); }} type="button">Use another email</button>
             ) : (
-              <button className="next-button" onClick={() => { setCompletion(null); setStep(1); }} type="button">Edit my profile</button>
+              <button className="next-button" disabled={busy} onClick={editProfile} type="button">Edit my profile</button>
             )}
-            {currentUser && subscribed ? (
-              <button className="back-button" disabled={busy} onClick={previewDigest} type="button">
-                {busy ? 'Preparing…' : 'Preview tomorrow safely'}
+            {currentUser && !awaitingVerification ? (
+              <button className="back-button" disabled={busy || preview.status === 'loading'} onClick={previewDigest} type="button">
+                {preview.status === 'loading' ? 'Preparing…' : 'Preview tomorrow safely'}
               </button>
             ) : null}
             {currentUser ? (
@@ -372,7 +431,7 @@ export default function App() {
             ) : null}
             {currentUser ? <button className="text-button" disabled={busy} onClick={signOut} type="button">Sign out</button> : null}
           </div>
-          {preview ? <p className="subscription-note">Preview reference: {preview.correlation_id}. Rendered {preview.rendered_count} private preview; sent {preview.sent_count} emails.</p> : null}
+          <DigestPreview state={preview} onRetry={previewDigest} disabled={busy} />
           {currentUser ? <p className="subscription-note">Pausing unsubscribes this address from delivery without deleting its saved profile or signing you out.</p> : null}
         </section>
       </main>
@@ -462,16 +521,17 @@ export default function App() {
                 <fieldset
                   className="interest-grid"
                   id="interests-fieldset"
-                  aria-describedby={validationError?.field === 'interests' ? 'interests-error' : undefined}
+                  aria-describedby={`interests-hint${validationError?.field === 'interests' ? ' interests-error' : ''}`}
                   aria-invalid={validationError?.field === 'interests'}
                   aria-required="true"
                   tabIndex="-1"
                 >
-                  <legend className="sr-only">Choose interest clusters</legend>
+                  <legend className="sr-only">Choose event types</legend>
                   {INTEREST_CLUSTERS.map(({ name, label, icon, includes }) => (
                     <ToggleChip key={name} checked={form.interests.includes(name)} icon={icon} label={<><strong>{label}</strong><small>{includes.slice(0, 3).join(' · ')}</small></>} onChange={() => updateList('interests', name)} />
                   ))}
                 </fieldset>
+                <p id="interests-hint" role="status">{form.interests.length} of {INTEREST_CLUSTERS.length} event types selected. Choose any that interest you.</p>
                 {validationError?.field === 'interests' ? <p className="field-error" id="interests-error" role="alert">{validationError.message}</p> : null}
               </>
             ) : null}
@@ -502,7 +562,7 @@ export default function App() {
               </fieldset>
             ) : null}
 
-            {step === 6 ? <ReviewList form={form} /> : null}
+            {step === 6 ? <><ReviewList form={form} /><p className="subscription-note">Save your profile before previewing tomorrow. Previews use your saved choices and send no email.</p></> : null}
 
             {notice ? <p className="status-message" role="status">{notice}</p> : null}
             {error ? <p className="error-message" role="alert">{error}</p> : null}

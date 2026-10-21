@@ -1,8 +1,10 @@
 import asyncio
 import importlib.util
+import json
 import sqlite3
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 WORKER_PATH = (
     Path(__file__).resolve().parents[1] / "cloudflare" / "worker" / "src" / "index.py"
@@ -326,3 +328,162 @@ def test_retention_cleanup_removes_history_before_unreferenced_events():
         "digest_runs": 1,
         "events": 1,
     }
+
+
+def test_jev_cache_reuses_identity_free_answers_and_fetches_new_selections():
+    import worker_jev as jev
+
+    connection = database()
+    calls = []
+    event = {
+        "event_key": "jazz",
+        "title": "Jazz",
+        "url": "https://example.com/jazz",
+        "description": "Jazz concert",
+    }
+
+    async def fake(body):
+        calls.append(body)
+        return {
+            "model": body["model"],
+            "answers": {
+                key: {
+                    "type": "noul",
+                    "noul": 0.94 if key.endswith("live_music") else 0.08,
+                }
+                for key in body["questions"]
+            },
+        }
+
+    env = SimpleNamespace(DB=SQLiteD1(connection), JEV_MODE="shadow", JEV_FETCH=fake)
+    music = asyncio.run(jev.evaluate_event(env, event, ["live_music"]))
+    food = asyncio.run(
+        jev.evaluate_event(env, {**event, "user_id": 99}, ["food_drink"])
+    )
+    both = asyncio.run(jev.evaluate_event(env, event, ["live_music", "food_drink"]))
+    assert music["decision"] == both["decision"] == "eligible"
+    assert food["decision"] == "irrelevant"
+    assert len(calls) == 2
+    assert all(len(body["questions"]) == 1 for body in calls)
+    assert "user_id" not in json.dumps(calls)
+    assert (
+        connection.execute("SELECT COUNT(*) FROM jev_answer_cache").fetchone()[0] == 2
+    )
+    asyncio.run(
+        jev.evaluate_event(
+            env, {**event, "description": "Changed event"}, ["food_drink"]
+        )
+    )
+    env.JEV_MODEL = "jev-1.14.0"
+    asyncio.run(jev.evaluate_event(env, event, ["food_drink"]))
+    assert len(calls) == 4
+
+
+def test_jev_cache_expiry_and_invalid_cached_answer_cannot_exclude():
+    import worker_jev as jev
+
+    connection = database()
+    db = SQLiteD1(connection)
+    answers = {"event_type:film": {"type": "noul", "noul": 0.0}}
+    asyncio.run(storage.save_jev_answers(db, "old", jev.DEFAULT_MODEL, answers))
+    connection.execute("UPDATE jev_answer_cache SET created_at = '2000-01-01'")
+    connection.commit()
+    assert asyncio.run(storage.load_jev_answers(db, "old", jev.DEFAULT_MODEL)) == {}
+
+    # Cached data is validated just like a fresh response before scoring.
+    async def bad_cache(*_args):
+        return {"event_type:film": {"type": "noul", "noul": True}}
+
+    async def unavailable(_body):
+        raise jev.ProviderHTTPError(401)
+
+    event = {"event_key": "one", "title": "Title", "url": "https://example.com/one"}
+    from unittest.mock import patch
+
+    with patch.object(jev, "load_jev_answers", bad_cache):
+        result = asyncio.run(
+            jev.evaluate_event(
+                SimpleNamespace(DB=db, JEV_MODE="filter", JEV_FETCH=unavailable),
+                event,
+                ["film"],
+            )
+        )
+    assert result["status"] == "fallback"
+    assert result["decision"] == "unknown"
+
+
+def test_jev_evaluation_retention_protects_rejected_event_until_run_expires():
+    from worker_jev import attach_event
+    from worker_relevance import score_answers
+
+    connection = database()
+    db = SQLiteD1(connection)
+    user_id, run_id = seed_user_and_run(connection)
+    event = {"event_key": "reject", "title": "Tour", "url": "https://example.com/tour"}
+    event_id = connection.execute(
+        "INSERT INTO events(event_key,title,url,start_at,source,last_seen_at) VALUES ('reject','Tour','https://example.com/tour','2026-06-01','fixture','2026-06-01')"
+    ).lastrowid
+    evaluation = attach_event(
+        event,
+        score_answers(["film"], {"event_type:film": {"type": "noul", "noul": 0}}),
+        "jev-1.13.0",
+    )
+    asyncio.run(
+        storage.record_jev_evaluation(
+            db,
+            digest_run_id=run_id,
+            user_id=user_id,
+            event_id=event_id,
+            evaluation=evaluation,
+        )
+    )
+    retained = asyncio.run(
+        storage.delete_expired_history(
+            db, digest_date_before="2026-09-04", event_last_seen_before="2026-09-01"
+        )
+    )
+    assert retained["events"] == 0
+    row = connection.execute("SELECT * FROM jev_evaluations").fetchone()
+    assert row["decision"] == "irrelevant"
+    assert json.loads(row["components"])[0]["p_yes"] == 0
+    assert json.loads(row["selected_event_types"]) == ["film"]
+    removed = asyncio.run(
+        storage.delete_expired_history(
+            db, digest_date_before="2026-09-06", event_last_seen_before="2026-09-01"
+        )
+    )
+    assert removed["events"] == 1
+    assert connection.execute("SELECT COUNT(*) FROM jev_evaluations").fetchone()[0] == 0
+
+
+def test_forward_jev_migration_preserves_existing_users_events_and_recommendations():
+    connection = database()
+    user_id, run_id = seed_user_and_run(connection)
+    event_id = connection.execute(
+        "INSERT INTO events(event_key,title,url,start_at,source) "
+        "VALUES ('saved','Saved event','https://example.com/saved','2026-09-05','fixture')"
+    ).lastrowid
+    asyncio.run(
+        storage.record_recommendation(
+            SQLiteD1(connection),
+            digest_run_id=run_id,
+            user_id=user_id,
+            event_id=event_id,
+            position=1,
+            relevance_reason="Existing choice",
+            model_id="existing-model",
+            used_fallback=False,
+        )
+    )
+    # Reproduce the already deployed schema before the additive migration.
+    connection.executescript("DROP TABLE jev_evaluations; DROP TABLE jev_answer_cache;")
+    migration = WORKER_PATH.parent.parent / "migrations/0001_jev_evaluations.sql"
+    connection.executescript(migration.read_text())
+    assert connection.execute("SELECT id FROM users").fetchone()[0] == user_id
+    assert connection.execute("SELECT COUNT(*) FROM digest_runs").fetchone()[0] == 1
+    assert (
+        connection.execute("SELECT event_id FROM recommendations").fetchone()[0]
+        == event_id
+    )
+    assert connection.execute("SELECT title FROM events").fetchone()[0] == "Saved event"
+    assert connection.execute("SELECT COUNT(*) FROM jev_evaluations").fetchone()[0] == 0

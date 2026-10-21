@@ -1,11 +1,16 @@
 # Feature Specification: User Registration and Personalization
 
-## Status (2026-09-04)
+## Status (reviewed 2026-10-21)
 
 The production direction is decided: Cloudflare is the interactive web stack.
 The Git-connected Pages project serves the React/Vite onboarding SPA and
 same-origin API proxy. The Python Worker, D1 database, single-use magic links,
 and Mailgun sandbox delivery are also deployed.
+
+Public Pages and direct Worker health checks passed on 2026-10-21. Current
+authenticated Cron/D1/provider checks remain outstanding; see the
+[status report](project-status-2026-10-21.md). The 12-option interest selector and
+server validation are implemented locally, pending deployment.
 
 The complete registration, magic-link, session, and profile round-trip is live.
 Production D1 contains a verified active profile with all six authoritative
@@ -66,11 +71,22 @@ shape consumed by ranking. The SPA must serialize this shape as JSON in the D1
 }
 ```
 
-The current UI vocabulary is maintained in `cloudflare/pages/src/profile.js`
-and maps to those fields. The form should make structured choices easy while
+The event-type vocabulary is maintained in `cloudflare/shared/event-types.json`
+and imported by `cloudflare/pages/src/profile.js`; the other controls stay in
+`profile.js`. The form should make structured choices easy while
 retaining the complete stored JSON needed by the ranker. Email, session tokens,
 and authentication metadata are not part of the personalization profile and
 must never be included in an LLM prompt.
+
+Event interests use a checkbox multi-select with 12 predefined choices and a
+minimum of one selection. All existing category IDs remain supported. The Worker
+accepts only unique catalog names and replaces `includes` with trusted catalog
+definitions. Invalid selections return HTTP 422 with `field: "interests"` before
+any profile write or email send. `preferences_blob` must be a JSON object encoded
+as a string, at most 16,384 UTF-8 bytes. Unknown saved IDs do not become new UI
+options; supported choices are restored, and a profile with no supported choices
+requires a new selection before it can be saved. The six stored field names and
+existing ranking interface remain unchanged.
 
 ## User experience requirements
 
@@ -194,6 +210,9 @@ Provider calls fall back to deterministic ranking when unavailable.
 
 ## Post-PoC
 
-- [ ] RYN-130: suggest optional related onboarding tags through a privacy-bounded
-  Worker/LLM call while keeping deterministic tags and the six-field profile
-  contract intact.
+- [ ] Re-scope RYN-130 to suggest only existing bounded catalog options.
+- [x] Implement and verify the [Jev preview contract](jev-integration-plan.md)
+  through parallel frontend/backend work, including paused-account previews,
+  per-type decision details, retries, and stale-response handling.
+- [ ] Apply the Jev D1 migration, deploy Worker then Pages, and validate controlled
+  shadow previews before enabling filtering; no live Jev calls were made locally.

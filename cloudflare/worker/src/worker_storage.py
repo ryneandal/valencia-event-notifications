@@ -51,6 +51,19 @@ async def list_active_subscribers(db: Any) -> list[dict[str, Any]]:
     return result_rows(result)
 
 
+async def get_preview_user(db: Any, user_id: int) -> dict[str, Any] | None:
+    """An authenticated active user can preview while delivery is paused."""
+    result = to_python(
+        await db.prepare(
+            "SELECT id, email, preferences_blob FROM users "
+            "WHERE id = ? AND is_active = 1"
+        )
+        .bind(user_id)
+        .first()
+    )
+    return result if isinstance(result, dict) else None
+
+
 async def list_events_for_date(db: Any, digest_date: str) -> list[dict[str, Any]]:
     """Return normalized events whose local ISO timestamp starts on a date."""
     result = await (
@@ -204,6 +217,86 @@ async def clear_recommendations(db: Any, digest_run_id: int, user_id: int) -> No
     )
 
 
+async def load_jev_answers(db: Any, cache_key: str, model: str) -> dict[str, Any]:
+    """Read only identity-free answers with the exact content and model key."""
+    result = await (
+        db.prepare(
+            """
+            SELECT question_id, p_yes FROM jev_answer_cache
+            WHERE cache_key = ? AND model = ?
+              AND datetime(created_at) >= datetime('now', '-90 days')
+            """
+        )
+        .bind(cache_key, model)
+        .all()
+    )
+    return {
+        row["question_id"]: {"type": "noul", "noul": row["p_yes"]}
+        for row in result_rows(result)
+    }
+
+
+async def save_jev_answers(
+    db: Any, cache_key: str, model: str, answers: dict[str, Any]
+) -> None:
+    for question_id, answer in answers.items():
+        await (
+            db.prepare(
+                """
+                INSERT INTO jev_answer_cache (cache_key, question_id, model, p_yes)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(cache_key, question_id) DO UPDATE SET
+                  model = excluded.model,
+                  p_yes = excluded.p_yes,
+                  created_at = CURRENT_TIMESTAMP
+                """
+            )
+            .bind(cache_key, question_id, model, answer["noul"])
+            .run()
+        )
+
+
+async def record_jev_evaluation(
+    db: Any,
+    *,
+    digest_run_id: int,
+    user_id: int,
+    event_id: int,
+    evaluation: dict[str, Any],
+) -> None:
+    """Keep private, append-only provenance for included and rejected events."""
+    await (
+        db.prepare(
+            """
+            INSERT INTO jev_evaluations (
+              digest_run_id, user_id, event_id, selected_event_types,
+              taxonomy_version, question_version, scoring_version, model,
+              components, threshold, irrelevance_score, decision, status,
+              error_code, evaluated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        )
+        .bind(
+            digest_run_id,
+            user_id,
+            event_id,
+            json.dumps(evaluation["selected_event_types"]),
+            evaluation["taxonomy_version"],
+            evaluation["question_version"],
+            evaluation["scoring_version"],
+            evaluation["model"],
+            json.dumps(evaluation["components"], allow_nan=False),
+            evaluation["threshold"],
+            evaluation["irrelevance_score"],
+            evaluation["decision"],
+            evaluation["status"],
+            evaluation["error_code"],
+            evaluation["evaluated_at"],
+        )
+        .run()
+    )
+
+
 async def finish_digest_run(
     db: Any,
     digest_run_id: int,
@@ -328,7 +421,23 @@ async def delete_expired_history(
     digest_date_before: str,
     event_last_seen_before: str,
 ) -> dict[str, int]:
-    """Delete old delivery history, followed by now-unreferenced events."""
+    """Delete old private history, followed by now-unreferenced events."""
+    await (
+        db.prepare(
+            """
+            DELETE FROM jev_evaluations
+            WHERE digest_run_id IN (
+              SELECT id FROM digest_runs WHERE digest_date < ?
+            )
+            """
+        )
+        .bind(digest_date_before)
+        .run()
+    )
+    await db.prepare(
+        "DELETE FROM jev_answer_cache "
+        "WHERE datetime(created_at) < datetime('now', '-90 days')"
+    ).run()
     deliveries = await (
         db.prepare(
             """
@@ -366,6 +475,10 @@ async def delete_expired_history(
               AND NOT EXISTS (
                 SELECT 1 FROM recommendations
                 WHERE recommendations.event_id = events.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM jev_evaluations
+                WHERE jev_evaluations.event_id = events.id
               )
             """
         )

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Jev per-event preview evaluation v1 (proposed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event", "selected_event_types", "taxonomy_version", "question_version", "scoring_version", "model", "evaluated_at", "status", "decision", "irrelevance_score", "threshold", "components", "error_code"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_key", "title", "url"],
+      "properties": {
+        "event_key": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri", "pattern": "^https?://"}
+      }
+    },
+    "selected_event_types": {
+      "type": "array", "maxItems": 12, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/eventType"}
+    },
+    "taxonomy_version": {"const": "event-types-v1"},
+    "question_version": {"const": "event-type-questions-v1"},
+    "scoring_version": {"const": "noul-any-type-v1"},
+    "model": {"type": ["string", "null"]},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["evaluated", "uncertain", "fallback"]},
+    "decision": {"enum": ["eligible", "irrelevant", "unknown"]},
+    "irrelevance_score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "threshold": {"type": "number", "minimum": 0, "maximum": 1},
+    "components": {
+      "type": "array", "maxItems": 12,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["question_id", "event_type", "p_yes", "confidence", "weight", "contribution"],
+        "properties": {
+          "question_id": {"type": "string", "pattern": "^event_type:"},
+          "event_type": {"$ref": "#/$defs/eventType"},
+          "p_yes": {"type": "number", "minimum": 0, "maximum": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "weight": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+          "contribution": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "error_code": {"enum": [null, "provider_unavailable", "invalid_provider_response", "invalid_preferences", "budget_exhausted", "feature_disabled"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "evaluated"}}},
+      "then": {
+        "properties": {
+          "selected_event_types": {"minItems": 1},
+          "model": {"type": "string", "minLength": 1},
+          "decision": {"enum": ["eligible", "irrelevant"]},
+          "irrelevance_score": {"type": "number"},
+          "error_code": {"type": "null"},
+          "components": {"minItems": 1, "items": {"properties": {"contribution": {"type": "number"}}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "uncertain"}}},
+      "then": {
+        "properties": {
+          "selected_event_types": {"minItems": 1},
+          "model": {"type": "string", "minLength": 1},
+          "decision": {"const": "unknown"},
+          "irrelevance_score": {"type": "null"},
+          "error_code": {"type": "null"},
+          "components": {"minItems": 1, "items": {"properties": {"contribution": {"type": "null"}}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "fallback"}}},
+      "then": {
+        "properties": {
+          "decision": {"const": "unknown"},
+          "irrelevance_score": {"type": "null"},
+          "components": {"maxItems": 0},
+          "error_code": {"type": "string"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "eventType": {
+      "enum": ["local_festivals_spectacle", "hands_on_learning", "animals_and_nature", "parks_and_play", "kid-friendly_culture", "live_music", "performing_arts", "art_exhibitions", "film", "food_drink", "sports_active", "tours_heritage"]
+    }
+  }
+}
