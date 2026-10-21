@@ -217,4 +217,4 @@ Provider calls fall back to deterministic ranking when unavailable.
 - [x] Apply the Jev D1 migration and deploy Worker then Pages on 2026-10-21.
 - [x] Configure the encrypted TypeSafe secret, verify three live labeled fixtures,
   and deploy shadow mode with digest delivery disabled.
-- [ ] Validate a controlled authenticated Worker preview before enabling filtering.
+- [x] Validate a controlled authenticated Worker preview and enable Jev filtering.

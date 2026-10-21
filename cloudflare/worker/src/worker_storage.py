@@ -7,6 +7,17 @@ from worker_runtime import to_python
 MAX_DELIVERY_ATTEMPTS = 3
 
 
+def _nullable_d1_value(value: Any) -> Any:
+    """Bind SQL NULL explicitly: Pyodide turns Python None into JS undefined."""
+    if value is not None:
+        return value
+    try:
+        from pyodide.ffi import jsnull  # type: ignore[import-not-found]
+    except ImportError:  # CPython's offline SQLite adapter accepts None directly.
+        return None
+    return jsnull
+
+
 def event_key(title: str, start_at: str, url: str) -> str:
     """Return the stable identity used to deduplicate a normalized event."""
     identity = json.dumps(
@@ -284,13 +295,13 @@ async def record_jev_evaluation(
             evaluation["taxonomy_version"],
             evaluation["question_version"],
             evaluation["scoring_version"],
-            evaluation["model"],
+            _nullable_d1_value(evaluation["model"]),
             json.dumps(evaluation["components"], allow_nan=False),
             evaluation["threshold"],
-            evaluation["irrelevance_score"],
+            _nullable_d1_value(evaluation["irrelevance_score"]),
             evaluation["decision"],
             evaluation["status"],
-            evaluation["error_code"],
+            _nullable_d1_value(evaluation["error_code"]),
             evaluation["evaluated_at"],
         )
         .run()
@@ -385,7 +396,7 @@ async def mark_delivery_sent(
             WHERE digest_run_id = ? AND user_id = ? AND status = 'pending'
             """
         )
-        .bind(provider_message_id, digest_run_id, user_id)
+        .bind(_nullable_d1_value(provider_message_id), digest_run_id, user_id)
         .run()
     )
     return result_changes(result) == 1

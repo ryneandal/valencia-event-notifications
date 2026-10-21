@@ -29,9 +29,9 @@ trusted definitions on registration/profile updates. Jev classification, scoring
 private D1 history, and the frontend decision breakdown are deployed after local
 and CI verification against the [shared contract](../specs/jev-integration-plan.md).
 The Jev D1 migration was applied before the Worker and matching Pages release.
-`JEV_MODE=shadow` is active with the encrypted TypeSafe secret configured.
-Three live labeled fixtures passed; an authenticated Worker preview remains
-before filtering. Digest delivery is disabled.
+`JEV_MODE=filter` is active with the encrypted TypeSafe secret configured.
+Three live labeled fixtures and an authenticated Worker preview passed before
+filtering was enabled. Digest delivery remains disabled.
 
 | Capability | State |
 | --- | --- |
@@ -42,7 +42,7 @@ before filtering. Digest delivery is disabled.
 | Email-only register/login sessions | Superseded in production; retained only in older local tooling |
 | Verified email magic links | Deployed with Mailgun and migrated D1; controlled delivery smoke passed |
 | Cloudflare Cron digest Worker | Full safe pipeline implemented; deployed with delivery disabled pending controlled smoke |
-| Bounded event types and Jev preview/scoring | Deployed with migrated D1 and encrypted secret; shadow mode, live fixture checks passed, authenticated preview pending |
+| Bounded event types and Jev preview/scoring | Filtering enabled with migrated D1 and encrypted secret; live fixtures and authenticated preview passed |
 
 Do not infer that an in-progress capability is available merely because its
 schema or partial endpoint exists.
